@@ -1,11 +1,18 @@
 import Link from "next/link";
 
 import { AuthForm } from "@/components/auth/auth-form";
+import { LogoLockup } from "@/components/branding/logo-lockup";
 
 export default function SignInPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl items-center px-4 py-10 lg:px-8">
       <div className="grid w-full gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded-[2rem] border border-orange-100 bg-white/85 p-6 shadow-soft lg:hidden">
+          <LogoLockup />
+          <p className="mt-5 text-sm leading-7 text-slate-600">
+            Sign in to manage your family, pre-check-in before church, or access the volunteer tools.
+          </p>
+        </div>
         <div className="hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-orange-950 to-orange-700 p-10 text-white shadow-glow lg:block">
           <h1 className="font-[var(--font-sora)] text-4xl font-semibold leading-tight">
             Sunday check-in that feels calm for families and effortless for volunteers.
@@ -18,7 +25,7 @@ export default function SignInPage() {
         <div className="flex items-center justify-center">
           <div className="w-full max-w-xl space-y-4">
             <AuthForm mode="sign-in" />
-            <p className="text-center text-sm text-slate-600">
+            <p className="px-2 text-center text-sm leading-7 text-slate-600">
               Need a parent account?{" "}
               <Link className="font-semibold text-orange-600" href="/sign-up">
                 Create one here.
@@ -30,4 +37,3 @@ export default function SignInPage() {
     </div>
   );
 }
-

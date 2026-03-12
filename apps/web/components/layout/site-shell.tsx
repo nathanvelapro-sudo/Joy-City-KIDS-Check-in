@@ -58,7 +58,49 @@ export function SiteShell({
       </header>
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 lg:flex-row lg:px-8">
         <aside className="no-print lg:w-72">
-          <div className="glass-panel grid-pattern rounded-[2rem] border border-orange-100/80 p-3 shadow-soft">
+          <div className="rounded-[1.75rem] border border-orange-100/80 bg-white/80 p-4 shadow-soft lg:hidden">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">
+                  JoyKids workspace
+                </p>
+                <h2 className="mt-2 text-lg font-semibold text-slate-900">
+                  Keep families moving with confidence.
+                </h2>
+              </div>
+              <Badge variant={profile.role === "parent" ? "secondary" : "default"}>
+                {profile.role === "admin"
+                  ? "Admin"
+                  : profile.role === "volunteer"
+                    ? "Volunteer"
+                    : "Parent"}
+              </Badge>
+            </div>
+            <nav className="hide-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1">
+              {items.map((item) => {
+                const Icon = iconMap[item.href as keyof typeof iconMap] ?? Users2;
+                const active = pathname === item.href;
+
+                return (
+                  <Link
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition",
+                      active
+                        ? "bg-orange-500 text-white shadow-glow"
+                        : "border border-orange-100 bg-white text-slate-700 hover:bg-orange-50",
+                    )}
+                    href={item.href}
+                    key={item.href}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div className="glass-panel grid-pattern hidden rounded-[2rem] border border-orange-100/80 p-3 shadow-soft lg:block">
             <div className="mb-3 rounded-[1.5rem] bg-white/80 p-4">
               <p className="text-sm font-medium text-muted-foreground">JoyKids workspace</p>
               <h2 className="mt-1 text-xl font-semibold text-slate-900">Keep families moving with confidence.</h2>

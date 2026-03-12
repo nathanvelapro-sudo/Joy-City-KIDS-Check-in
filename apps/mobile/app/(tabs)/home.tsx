@@ -4,7 +4,7 @@ import { Redirect } from "expo-router";
 
 import { Screen } from "../../src/components/screen";
 import { useRealtimeFamily } from "../../src/hooks/use-realtime-family";
-import { formatTemplateLabel } from "../../src/lib/notifications";
+import { formatTemplateLabel, normalizeBrandCopy } from "../../src/lib/notifications";
 import { useSession } from "../../src/lib/session";
 import { colors } from "../../src/lib/theme";
 
@@ -87,7 +87,7 @@ export default function HomeTab() {
               snapshot.notifications.slice(0, 5).map((notification: any) => (
                 <View key={notification.id} style={styles.notice}>
                   <Text style={styles.noticeTitle}>{formatTemplateLabel(notification.template_key)}</Text>
-                  <Text style={styles.noticeText}>{notification.message_body}</Text>
+                  <Text style={styles.noticeText}>{normalizeBrandCopy(notification.message_body)}</Text>
                 </View>
               ))
             )}

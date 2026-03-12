@@ -9,3 +9,11 @@ export function formatTemplateLabel(templateKey?: string | null) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 }
+
+export function normalizeBrandCopy(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  return value.replace(/safe\s*kids/gi, "JoyKids");
+}

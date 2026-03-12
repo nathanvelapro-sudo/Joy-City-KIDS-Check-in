@@ -56,6 +56,26 @@ export function formatTemplateLabel(templateKey?: string | null) {
     .join(" ");
 }
 
+export function normalizeBrandCopy(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  return value.replace(/safe\s*kids/gi, "JoyKids");
+}
+
+export function formatNotificationError(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  if (/twilio|not configured|auth|credential/i.test(value)) {
+    return "Alert delivery needs attention. Please resend the room update.";
+  }
+
+  return value;
+}
+
 export function formatDateTime(input?: string | Date | null) {
   if (!input) {
     return "Not scheduled";

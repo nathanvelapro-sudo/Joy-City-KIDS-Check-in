@@ -95,12 +95,13 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   }
 
   return (
-    <Card className="glass-panel w-full max-w-xl border-white/90 shadow-glow">
-      <CardHeader>
+    <Card className="glass-panel w-full max-w-xl overflow-hidden border-white/90 p-0 shadow-glow">
+      <div className="h-1.5 bg-gradient-to-r from-orange-500 via-orange-300 to-amber-200" />
+      <CardHeader className="px-6 pb-6 pt-6 sm:px-8 sm:pt-8">
         <CardTitle className="text-3xl">{heading.title}</CardTitle>
         <CardDescription>{heading.description}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-6 pb-6 sm:px-8 sm:pb-8">
         <form className="space-y-5" onSubmit={handleSubmit}>
           {isSignup ? (
             <>
@@ -154,6 +155,9 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             {heading.button}
           </Button>
+          <p className="text-center text-xs leading-6 text-slate-500">
+            Secure sign-in powered by Supabase Auth with family-only access controls.
+          </p>
         </form>
       </CardContent>
     </Card>

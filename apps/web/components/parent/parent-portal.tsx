@@ -15,7 +15,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useRealtimeFamily } from "@/hooks/use-realtime-family";
 import { createClient } from "@/lib/supabase/browser";
-import { formatDateTime, formatGradeOrAge, formatPhone, formatTemplateLabel } from "@/lib/utils";
+import {
+  formatDateTime,
+  formatGradeOrAge,
+  formatPhone,
+  formatTemplateLabel,
+  normalizeBrandCopy,
+} from "@/lib/utils";
 
 function backgroundCheckVariant(status: string) {
   if (status === "approved") return "success";
@@ -727,7 +733,9 @@ export function ParentPortal({
                     <p className="font-semibold text-slate-950">
                       {formatTemplateLabel(notification.template_key)}
                     </p>
-                    <p className="mt-1 text-sm text-slate-600">{notification.message_body}</p>
+                    <p className="mt-1 text-sm leading-7 text-slate-600">
+                      {normalizeBrandCopy(notification.message_body)}
+                    </p>
                   </div>
                   <Badge
                     variant={

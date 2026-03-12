@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { Screen } from "../../src/components/screen";
 import { useRealtimeFamily } from "../../src/hooks/use-realtime-family";
-import { formatTemplateLabel } from "../../src/lib/notifications";
+import { formatTemplateLabel, normalizeBrandCopy } from "../../src/lib/notifications";
 import { useSession } from "../../src/lib/session";
 import { colors } from "../../src/lib/theme";
 
@@ -26,7 +26,7 @@ export default function AlertsTab() {
           snapshot.notifications.map((notification: any) => (
             <View key={notification.id} style={styles.row}>
               <Text style={styles.rowTitle}>{formatTemplateLabel(notification.template_key)}</Text>
-              <Text style={styles.rowText}>{notification.message_body}</Text>
+              <Text style={styles.rowText}>{normalizeBrandCopy(notification.message_body)}</Text>
               <Text style={styles.badge}>{notification.status}</Text>
             </View>
           ))

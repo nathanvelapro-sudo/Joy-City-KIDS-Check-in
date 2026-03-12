@@ -11,7 +11,13 @@ import { useRealtimeRoomBoard } from "@/hooks/use-realtime-room-board";
 import { QUICK_MESSAGE_TEMPLATES } from "@/lib/constants";
 import { fetchRoomBoard, getRecentNotifications } from "@/lib/data";
 import { createClient } from "@/lib/supabase/browser";
-import { formatDateTime, formatPhone, formatTemplateLabel } from "@/lib/utils";
+import {
+  formatDateTime,
+  formatNotificationError,
+  formatPhone,
+  formatTemplateLabel,
+  normalizeBrandCopy,
+} from "@/lib/utils";
 
 function statusVariant(status: string) {
   if (status === "approved") return "success";
@@ -130,10 +136,10 @@ export function LiveDashboard({
               </select>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-4 lg:grid-cols-2">
+          <CardContent className="grid auto-rows-fr gap-4 md:grid-cols-2">
             {groups.map(({ room, entries }) => (
               <div
-                className="rounded-[1.75rem] border border-orange-100 bg-white p-5"
+                className="flex h-full min-h-[15.5rem] flex-col rounded-[1.75rem] border border-orange-100 bg-white p-5"
                 key={room.id}
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
@@ -144,11 +150,11 @@ export function LiveDashboard({
                   <Badge>{entries.length} active</Badge>
                 </div>
                 {entries.length === 0 ? (
-                  <div className="rounded-[1.25rem] border border-dashed border-orange-200 p-4 text-sm text-muted-foreground">
-                    No children checked into this room yet.
+                  <div className="flex flex-1 items-center rounded-[1.25rem] border border-dashed border-orange-200 p-4 text-sm text-muted-foreground">
+                    <p>No children checked into this room yet.</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="flex flex-1 flex-col gap-3">
                     {entries.map((entry) => (
                       <div
                         className="rounded-[1.25rem] border border-slate-100 bg-slate-50 p-4"
@@ -230,9 +236,13 @@ export function LiveDashboard({
                           <p className="text-sm font-semibold text-slate-900">
                             {formatTemplateLabel(notification.template_key)}
                           </p>
-                          <p className="mt-1 text-sm text-slate-600">{notification.message_body}</p>
+                          <p className="mt-1 text-sm leading-7 text-slate-600">
+                            {normalizeBrandCopy(notification.message_body)}
+                          </p>
                           {notification.status === "failed" && notification.metadata?.error ? (
-                            <p className="mt-2 text-xs text-rose-600">{notification.metadata.error}</p>
+                            <p className="mt-2 text-xs text-rose-600">
+                              {formatNotificationError(notification.metadata.error)}
+                            </p>
                           ) : null}
                         </div>
                       </div>
