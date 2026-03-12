@@ -27,7 +27,7 @@ export default function HomeTab() {
   return (
     <Screen
       subtitle="Your family snapshot updates live whenever a volunteer checks kids in or sends a room message."
-      title="SafeKids Home"
+      title="JoyKids Home"
     >
       {!familyId || !snapshot ? (
         <View style={styles.card}>

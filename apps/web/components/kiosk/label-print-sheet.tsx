@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Barcode from "react-barcode";
 import QRCode from "react-qr-code";
 import { Printer, Settings2 } from "lucide-react";
@@ -177,8 +176,10 @@ export function LabelPrintSheet({
                 <div className="space-y-4 p-5">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Age / Grade</p>
-                      <p className="mt-2 text-lg font-semibold text-slate-900">{child.grade_label}</p>
+                      <p className="text-xs uppercase tracking-[0.28em] text-slate-500">
+                        {child.displayLabelType === "grade" ? "Grade" : "Age"}
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-slate-900">{child.displayLabel}</p>
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Security code</p>
@@ -197,24 +198,9 @@ export function LabelPrintSheet({
                       {child.special_instructions || "No additional instructions."}
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {child.photo_url ? (
-                      <Image
-                        alt={child.first_name}
-                        className="h-24 w-full rounded-[1.25rem] object-cover"
-                        height={96}
-                        src={child.photo_url}
-                        width={120}
-                      />
-                    ) : (
-                      <div className="flex h-24 items-center justify-center rounded-[1.25rem] bg-orange-50 px-3 text-center text-[10px] font-semibold uppercase tracking-[0.28em] text-orange-700">
-                        No photo
-                      </div>
-                    )}
-                    <div className="rounded-[1.25rem] border border-orange-100 p-3">
-                      <div className="mx-auto aspect-square w-full">
-                        <QRCode className="h-full w-full" value={payload.session.security_qr_token} />
-                      </div>
+                  <div className="rounded-[1.25rem] border border-orange-100 p-3">
+                    <div className="mx-auto aspect-square w-full max-w-[120px]">
+                      <QRCode className="h-full w-full" value={payload.session.security_qr_token} />
                     </div>
                   </div>
                 </div>
@@ -223,8 +209,10 @@ export function LabelPrintSheet({
                   <div className="space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Age / Grade</p>
-                        <p className="mt-2 text-lg font-semibold text-slate-900">{child.grade_label}</p>
+                        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">
+                          {child.displayLabelType === "grade" ? "Grade" : "Age"}
+                        </p>
+                        <p className="mt-2 text-lg font-semibold text-slate-900">{child.displayLabel}</p>
                       </div>
                       <div>
                         <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Security code</p>
@@ -244,24 +232,9 @@ export function LabelPrintSheet({
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-4">
-                    {child.photo_url ? (
-                      <Image
-                        alt={child.first_name}
-                        className="h-28 w-full rounded-[1.25rem] object-cover"
-                        height={112}
-                        src={child.photo_url}
-                        width={160}
-                      />
-                    ) : (
-                      <div className="flex h-28 items-center justify-center rounded-[1.25rem] bg-orange-50 text-xs font-semibold uppercase tracking-[0.28em] text-orange-700">
-                        No photo
-                      </div>
-                    )}
-                    <div className="self-start rounded-[1.25rem] border border-orange-100 p-3">
-                      <div className="mx-auto aspect-square w-full">
-                        <QRCode className="h-full w-full" value={payload.session.security_qr_token} />
-                      </div>
+                  <div className="self-start rounded-[1.25rem] border border-orange-100 p-3">
+                    <div className="mx-auto aspect-square w-full">
+                      <QRCode className="h-full w-full" value={payload.session.security_qr_token} />
                     </div>
                   </div>
                 </div>

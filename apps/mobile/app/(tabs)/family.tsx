@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AppButton } from "../../src/components/app-button";
 import { Screen } from "../../src/components/screen";
 import { useRealtimeFamily } from "../../src/hooks/use-realtime-family";
+import { formatGradeOrAge } from "../../src/lib/children";
 import { useSession } from "../../src/lib/session";
 import { supabase } from "../../src/lib/supabase";
 import { colors } from "../../src/lib/theme";
@@ -153,18 +154,18 @@ export default function FamilyTab() {
             </Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.title}>Children</Text>
-            {snapshot.children.map((child: any) => (
-              <View key={child.id} style={styles.listRow}>
-                <Text style={styles.listTitle}>
-                  {child.preferred_name || child.first_name} {child.last_name}
-                </Text>
-                <Text style={styles.listText}>
-                  {child.grade_label || child.birthdate} · {child.allergies || "No allergies listed"}
-                </Text>
-              </View>
-            ))}
+        <View style={styles.card}>
+          <Text style={styles.title}>Children</Text>
+          {snapshot.children.map((child: any) => (
+            <View key={child.id} style={styles.listRow}>
+              <Text style={styles.listTitle}>
+                {child.preferred_name || child.first_name} {child.last_name}
+              </Text>
+              <Text style={styles.listText}>
+                {formatGradeOrAge(child.grade_label, child.birthdate)} · {child.allergies || "No allergies listed"}
+              </Text>
+            </View>
+          ))}
             <TextInput
               onChangeText={(value) => setChildForm((current) => ({ ...current, first_name: value }))}
               placeholder="First name"
@@ -188,7 +189,7 @@ export default function FamilyTab() {
             />
             <TextInput
               onChangeText={(value) => setChildForm((current) => ({ ...current, grade_label: value }))}
-              placeholder="Grade label"
+              placeholder="Grade (optional)"
               placeholderTextColor={colors.textMuted}
               style={styles.input}
               value={childForm.grade_label}
@@ -319,4 +320,3 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
-

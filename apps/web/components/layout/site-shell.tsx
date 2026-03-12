@@ -60,7 +60,7 @@ export function SiteShell({
         <aside className="no-print lg:w-72">
           <div className="glass-panel grid-pattern rounded-[2rem] border border-orange-100/80 p-3 shadow-soft">
             <div className="mb-3 rounded-[1.5rem] bg-white/80 p-4">
-              <p className="text-sm font-medium text-muted-foreground">SafeKids workspace</p>
+              <p className="text-sm font-medium text-muted-foreground">JoyKids workspace</p>
               <h2 className="mt-1 text-xl font-semibold text-slate-900">Keep families moving with confidence.</h2>
             </div>
             <nav className="space-y-2">

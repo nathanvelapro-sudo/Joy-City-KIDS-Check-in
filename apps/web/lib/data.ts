@@ -20,6 +20,7 @@ export async function getRooms(supabase: AppSupabase) {
     .from("rooms")
     .select("*")
     .eq("active", true)
+    .order("min_age_months", { ascending: true, nullsFirst: false })
     .order("name", { ascending: true });
 
   return data ?? [];
@@ -304,7 +305,7 @@ export async function fetchPickupSearchResult(
 }
 
 export async function getReportsSnapshot(supabase: AppSupabase) {
-  const [attendance, pickupLogs, volunteers] = await Promise.all([
+  const [attendance, pickupLogsResult, detailedCheckinsResult, volunteers] = await Promise.all([
     supabase
       .from("attendance_rollup")
       .select("*")
@@ -317,16 +318,49 @@ export async function getReportsSnapshot(supabase: AppSupabase) {
       .order("released_at", { ascending: false })
       .limit(50),
     supabase
+      .from("checkins")
+      .select(
+        "*, child:children(first_name, last_name, preferred_name, birthdate, grade_label), family:families(household_name), room:rooms(name), service:service_events(name, starts_at), pickup:authorized_pickups(full_name, relationship)",
+      )
+      .order("dropoff_time", { ascending: false })
+      .limit(100),
+    supabase
       .from("user_profiles")
       .select("*")
       .in("role", ["volunteer", "admin"])
       .order("full_name"),
   ]);
 
+  const pickupLogs = pickupLogsResult.data ?? [];
+  const detailedCheckins = detailedCheckinsResult.data ?? [];
+  const staffIds = Array.from(
+    new Set(
+      [
+        ...pickupLogs.map((log) => log.verified_by_staff_id),
+        ...detailedCheckins.map((entry) => entry.dropoff_by),
+        ...detailedCheckins.map((entry) => entry.picked_up_by_staff_id),
+      ].filter(Boolean),
+    ),
+  );
+
+  const staffProfiles = staffIds.length
+    ? await supabase.from("user_profiles").select("id, full_name").in("id", staffIds)
+    : { data: [] as Array<{ id: string; full_name: string }> };
+  const staffMap = new Map((staffProfiles.data ?? []).map((profile) => [profile.id, profile.full_name]));
+
   return {
     attendance: attendance.data ?? [],
-    pickupLogs: pickupLogs.data ?? [],
+    pickupLogs: pickupLogs.map((log) => ({
+      ...log,
+      verifiedByName: staffMap.get(log.verified_by_staff_id) ?? "Unknown staff",
+    })),
+    detailedCheckins: detailedCheckins.map((entry) => ({
+      ...entry,
+      checkedInByName: staffMap.get(entry.dropoff_by) ?? "Unknown staff",
+      checkedOutByName: entry.picked_up_by_staff_id
+        ? (staffMap.get(entry.picked_up_by_staff_id) ?? "Unknown staff")
+        : null,
+    })),
     volunteers: volunteers.data ?? [],
   };
 }
-

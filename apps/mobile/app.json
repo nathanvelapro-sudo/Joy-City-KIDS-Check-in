@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "SafeKids Check-In",
-    "slug": "safekids-check-in",
-    "scheme": "safekids",
+    "name": "JoyKids Check-In",
+    "slug": "joykids-check-in",
+    "scheme": "joykids",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "plugins": ["expo-router"],
@@ -15,4 +15,3 @@
     }
   }
 }
-

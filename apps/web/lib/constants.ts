@@ -1,6 +1,6 @@
 import type { AppRole } from "@/lib/types";
 
-export const APP_NAME = "SafeKids Check-In";
+export const APP_NAME = "JoyKids Check-In";
 
 export const NAV_ITEMS: Array<{
   href: string;
@@ -38,17 +38,16 @@ export const QUICK_MESSAGE_TEMPLATES = [
   {
     key: "comfort-check",
     label: "Comfort check",
-    body: "Hi from SafeKids. Your child could use a quick comfort check in their room when you have a moment.",
+    body: "Hi from JoyKids. Your child could use a quick comfort check in their room when you have a moment.",
   },
   {
     key: "bathroom-break",
     label: "Bathroom break",
-    body: "Hi from SafeKids. Your child needs a quick bathroom break and a parent at the room door.",
+    body: "Hi from JoyKids. Your child needs a quick bathroom break and a parent at the room door.",
   },
   {
     key: "service-update",
     label: "Service update",
-    body: "Hi from SafeKids. Everything is going well, and your child is settled in. We will text again only if needed.",
+    body: "Hi from JoyKids. Everything is going well, and your child is settled in. We will alert you again only if needed.",
   },
 ];
-

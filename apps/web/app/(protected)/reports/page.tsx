@@ -11,9 +11,9 @@ export default async function ReportsPage() {
   return (
     <ReportsScreen
       initialAttendance={snapshot.attendance}
+      initialDetailedCheckins={snapshot.detailedCheckins}
       initialPickupLogs={snapshot.pickupLogs}
       initialVolunteers={snapshot.volunteers}
     />
   );
 }
-

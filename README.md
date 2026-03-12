@@ -1,6 +1,6 @@
-# SafeKids Check-In
+# JoyKids Check-In
 
-SafeKids Check-In is a full-stack church kids check-in system for Joy City Church built on Supabase, Next.js 15, and Expo. It includes:
+JoyKids Check-In is a full-stack church kids check-in system for Joy City Church built on Supabase, Next.js 15, and Expo. It includes:
 
 - A fullscreen kiosk workflow for family search, live check-in, room assignment, and instant label printing
 - A realtime volunteer dashboard with room board, recent alerts, and background-check visibility
@@ -179,7 +179,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-NEXT_PUBLIC_DEFAULT_SERVICE_NAME=Sunday 9:00 AM
+NEXT_PUBLIC_DEFAULT_SERVICE_NAME=Sunday 10:30 AM
 
 EXPO_PUBLIC_SUPABASE_URL=...
 EXPO_PUBLIC_SUPABASE_ANON_KEY=...
@@ -285,8 +285,7 @@ Example SQL:
 ```sql
 insert into public.service_events (name, campus, starts_at, status)
 values
-  ('Sunday 9:00 AM', 'Main Campus', now() + interval '1 day', 'scheduled'),
-  ('Sunday 11:00 AM', 'Main Campus', now() + interval '1 day' + interval '2 hours', 'scheduled');
+  ('Sunday 10:30 AM', 'Main Campus', now() + interval '1 day', 'scheduled');
 ```
 
 ### 5. Promote staff users
@@ -361,7 +360,7 @@ The child label includes:
 - Room
 - Allergy summary
 - Special instructions
-- Photo if available
+- Birthdate-derived age when no grade is entered
 
 ## Vercel Deployment Steps
 
@@ -379,10 +378,7 @@ NEXT_PUBLIC_SITE_URL=https://YOUR-PRODUCTION-URL
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-NEXT_PUBLIC_DEFAULT_SERVICE_NAME=Sunday 9:00 AM
-TWILIO_ACCOUNT_SID=...
-TWILIO_AUTH_TOKEN=...
-TWILIO_FROM_PHONE=...
+NEXT_PUBLIC_DEFAULT_SERVICE_NAME=Sunday 10:30 AM
 ```
 
 7. Deploy.

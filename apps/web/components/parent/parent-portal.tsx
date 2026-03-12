@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useRealtimeFamily } from "@/hooks/use-realtime-family";
 import { createClient } from "@/lib/supabase/browser";
-import { formatDateTime, formatPhone, formatTemplateLabel } from "@/lib/utils";
+import { formatDateTime, formatGradeOrAge, formatPhone, formatTemplateLabel } from "@/lib/utils";
 
 function backgroundCheckVariant(status: string) {
   if (status === "approved") return "success";
@@ -65,7 +65,6 @@ export function ParentPortal({
     allergies: "",
     medical_notes: "",
     special_instructions: "",
-    photo_url: "",
     default_room_id: "",
   });
   const [pickupForm, setPickupForm] = useState({
@@ -127,7 +126,6 @@ export function ParentPortal({
         allergies: childForm.allergies || null,
         medical_notes: childForm.medical_notes || null,
         special_instructions: childForm.special_instructions || null,
-        photo_url: childForm.photo_url || null,
         default_room_id: childForm.default_room_id || null,
       });
 
@@ -145,7 +143,6 @@ export function ParentPortal({
         allergies: "",
         medical_notes: "",
         special_instructions: "",
-        photo_url: "",
         default_room_id: "",
       });
       toast.success("Child added.");
@@ -425,7 +422,7 @@ export function ParentPortal({
                               {child.preferred_name || child.first_name} {child.last_name}
                             </p>
                             <p className="text-sm text-slate-500">
-                              {child.grade_label || child.birthdate}
+                              {formatGradeOrAge(child.grade_label, child.birthdate)}
                             </p>
                           </div>
                           {child.default_room_id ? (
@@ -494,7 +491,7 @@ export function ParentPortal({
           <CardHeader>
             <CardTitle>Add a child</CardTitle>
             <CardDescription>
-              Keep allergy notes, medical notes, room assignment, and photo URL up to date.
+              Keep grade, allergy notes, medical notes, and room assignment up to date.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -544,7 +541,7 @@ export function ParentPortal({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="grade-label">Grade / age label</Label>
+                <Label htmlFor="grade-label">Grade</Label>
                 <Input
                   id="grade-label"
                   onChange={(event) =>
@@ -571,17 +568,6 @@ export function ParentPortal({
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="photo-url">Photo URL</Label>
-                <Input
-                  id="photo-url"
-                  onChange={(event) =>
-                    setChildForm((current) => ({ ...current, photo_url: event.target.value }))
-                  }
-                  placeholder="https://..."
-                  value={childForm.photo_url}
-                />
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="allergies">Allergies</Label>

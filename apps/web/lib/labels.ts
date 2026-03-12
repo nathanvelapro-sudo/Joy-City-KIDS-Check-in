@@ -1,4 +1,4 @@
-import { formatGradeOrAge } from "@/lib/utils";
+import { formatGradeOrAge, getGradeOrAgeLabelType } from "@/lib/utils";
 import type {
   CheckinRecord,
   CheckinSession,
@@ -33,12 +33,12 @@ export function buildLabelPayload(params: {
 
         return {
           ...child,
-          grade_label: formatGradeOrAge(child.grade_label, child.birthdate),
           roomName: roomMap.get(checkin.room_id ?? "") ?? "Room assignment pending",
           allergyText: checkin.allergies_snapshot || "No allergies listed",
+          displayLabel: formatGradeOrAge(child.grade_label, child.birthdate),
+          displayLabelType: getGradeOrAgeLabelType(child.grade_label),
         };
       })
       .filter(Boolean) as KioskLabelPayload["children"],
   };
 }
-

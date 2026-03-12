@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AppButton } from "../../src/components/app-button";
 import { Screen } from "../../src/components/screen";
 import { useRealtimeFamily } from "../../src/hooks/use-realtime-family";
+import { formatGradeOrAge } from "../../src/lib/children";
 import { useSession } from "../../src/lib/session";
 import { supabase } from "../../src/lib/supabase";
 import { colors } from "../../src/lib/theme";
@@ -128,7 +129,7 @@ export default function PrecheckinTab() {
                     {child.preferred_name || child.first_name} {child.last_name}
                   </Text>
                   <Text style={styles.selectionText}>
-                    {child.grade_label || child.birthdate}
+                    {formatGradeOrAge(child.grade_label, child.birthdate)}
                   </Text>
                   <Text style={styles.selectionText}>
                     {child.allergies || "No allergies listed"}
@@ -245,4 +246,3 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
 });
-

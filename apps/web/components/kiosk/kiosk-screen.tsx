@@ -19,7 +19,7 @@ import {
   fetchQueuedPrecheckins,
 } from "@/lib/data";
 import { createClient } from "@/lib/supabase/browser";
-import { formatDateTime, formatPhone } from "@/lib/utils";
+import { formatDateTime, formatGradeOrAge, formatPhone } from "@/lib/utils";
 
 type SearchResult = {
   family_id: string;
@@ -391,7 +391,7 @@ export function KioskScreen({
                               {child.preferred_name || child.first_name} {child.last_name}
                             </p>
                             <p className="text-sm text-slate-500">
-                              {child.grade_label || child.birthdate}
+                              {formatGradeOrAge(child.grade_label, child.birthdate)}
                             </p>
                             <div className="mt-3 flex flex-wrap gap-2">
                               {child.allergies ? <Badge>Allergy alert</Badge> : null}

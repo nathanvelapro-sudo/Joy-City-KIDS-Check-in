@@ -95,11 +95,15 @@ export function calculateAgeLabel(birthdate: string) {
 }
 
 export function formatGradeOrAge(gradeLabel: string | null | undefined, birthdate: string) {
-  if (gradeLabel) {
-    return gradeLabel;
+  if (gradeLabel?.trim()) {
+    return gradeLabel.trim();
   }
 
   return calculateAgeLabel(birthdate);
+}
+
+export function getGradeOrAgeLabelType(gradeLabel: string | null | undefined) {
+  return gradeLabel?.trim() ? "grade" : "age";
 }
 
 export function truncate(value: string, max = 120) {

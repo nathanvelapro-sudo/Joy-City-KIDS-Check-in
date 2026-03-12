@@ -19,7 +19,7 @@ const features = [
   {
     icon: Users,
     title: "Live volunteer board",
-    copy: "Room counts, drop-off timestamps, and quick parent texting update live from Supabase Realtime.",
+    copy: "Room counts, drop-off timestamps, and quick parent alerts update live from Supabase Realtime.",
   },
   {
     icon: ShieldCheck,
@@ -48,7 +48,7 @@ export default function HomePage() {
         <section className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="animate-fade-up space-y-8">
             <div className="inline-flex rounded-full bg-white/80 px-4 py-2 text-sm font-semibold text-orange-700 shadow-soft">
-              SafeKids Check-In for Joy City Church
+              JoyKids Check-In for Joy City Church
             </div>
             <div className="space-y-5">
               <h1 className="max-w-4xl font-[var(--font-sora)] text-5xl font-semibold tracking-tight text-slate-950 lg:text-7xl">
@@ -118,4 +118,3 @@ export default function HomePage() {
     </div>
   );
 }
-

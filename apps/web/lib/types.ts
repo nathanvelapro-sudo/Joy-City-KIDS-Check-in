@@ -174,5 +174,12 @@ export interface KioskLabelPayload {
   family: Family;
   session: CheckinSession;
   service: ServiceEvent | null;
-  children: Array<Child & { roomName: string; allergyText: string }>;
+  children: Array<
+    Child & {
+      roomName: string;
+      allergyText: string;
+      displayLabel: string;
+      displayLabelType: "grade" | "age";
+    }
+  >;
 }
