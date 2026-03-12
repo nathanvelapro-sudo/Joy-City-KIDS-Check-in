@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "SafeKids Check-In",
+    "slug": "safekids-check-in",
+    "scheme": "safekids",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}
+

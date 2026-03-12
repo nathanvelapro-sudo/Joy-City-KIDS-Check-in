@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 36 100% 98%;
+  --foreground: 215 28% 17%;
+  --card: 0 0% 100%;
+  --card-foreground: 215 28% 17%;
+  --muted: 27 100% 97%;
+  --muted-foreground: 214 16% 42%;
+  --border: 28 32% 86%;
+  --ring: 24 95% 53%;
+  --primary: 24 95% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 27 100% 95%;
+  --secondary-foreground: 19 81% 32%;
+  --accent: 20 100% 92%;
+  --accent-foreground: 18 80% 27%;
+}
+
+* {
+  @apply border-border;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply min-h-screen bg-background text-foreground antialiased;
+  background-image:
+    radial-gradient(circle at top left, rgba(251, 146, 60, 0.18), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(234, 88, 12, 0.14), transparent 24%),
+    linear-gradient(180deg, rgba(255, 247, 237, 0.95) 0%, rgba(255, 251, 235, 0.95) 100%);
+}
+
+a {
+  @apply text-inherit no-underline;
+}
+
+::selection {
+  background: rgba(249, 115, 22, 0.18);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(18px);
+}
+
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(249, 115, 22, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(249, 115, 22, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.label-sheet {
+  display: grid;
+  gap: 1rem;
+}
+
+.label-sheet[data-template="thermal"] {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.label-sheet[data-template="letter"] {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.label-card {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 1.25rem;
+  background: white;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+}
+
+.security-dots {
+  background-image: radial-gradient(rgba(15, 23, 42, 0.08) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
+.print-preview-scroll {
+  scrollbar-gutter: stable;
+}
+
+@media print {
+  body {
+    background: white;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-surface {
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .label-sheet {
+    display: block;
+  }
+
+  .label-card {
+    box-shadow: none;
+    page-break-inside: avoid;
+    margin-bottom: 0.2in;
+  }
+}
