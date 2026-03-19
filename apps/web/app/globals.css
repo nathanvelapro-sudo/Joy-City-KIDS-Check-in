@@ -116,22 +116,44 @@ a {
     margin: 0;
   }
 
+  body * {
+    visibility: hidden !important;
+  }
+
   body {
     background: white;
+    background-image: none !important;
   }
 
   .no-print {
     display: none !important;
   }
 
+  .print-surface,
+  .print-surface * {
+    visibility: visible !important;
+  }
+
   .print-surface {
     background: white !important;
     box-shadow: none !important;
     border: none !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 62mm !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   .label-sheet {
     display: block;
+  }
+
+  .print-preview-scroll {
+    overflow: visible !important;
+    padding-right: 0 !important;
   }
 
   .label-card {
