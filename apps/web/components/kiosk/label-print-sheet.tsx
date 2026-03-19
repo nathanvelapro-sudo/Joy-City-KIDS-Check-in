@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import Barcode from "react-barcode";
 import QRCode from "react-qr-code";
 import { Printer } from "lucide-react";
@@ -17,13 +18,66 @@ export function LabelPrintSheet({
   payload: KioskLabelPayload | null;
   onMarkPrinted?: () => Promise<void> | void;
 }) {
+  const labelSheetRef = useRef<HTMLDivElement | null>(null);
+
   if (!payload) {
     return null;
   }
 
   async function handlePrint() {
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=980,height=720");
+    const labelMarkup = labelSheetRef.current?.outerHTML;
+
+    if (!printWindow || !labelMarkup) {
+      return;
+    }
+
     await onMarkPrinted?.();
-    window.print();
+
+    const headMarkup = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((node) => node.outerHTML)
+      .join("");
+
+    printWindow.document.open();
+    printWindow.document.write(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JoyKids Labels</title>
+    ${headMarkup}
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+
+      body {
+        display: flex;
+        justify-content: center;
+      }
+
+      .label-sheet {
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    ${labelMarkup}
+    <script>
+      window.addEventListener("load", () => {
+        setTimeout(() => {
+          window.print();
+        }, 150);
+      });
+      window.addEventListener("afterprint", () => {
+        window.close();
+      });
+    </script>
+  </body>
+</html>`);
+    printWindow.document.close();
   }
 
   return (
@@ -51,7 +105,7 @@ export function LabelPrintSheet({
         </div>
       </CardHeader>
       <CardContent className="print-preview-scroll flex justify-center pr-0 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
-        <div className="label-sheet pb-2" data-template="brother-ql800">
+        <div className="label-sheet pb-2" data-template="brother-ql800" ref={labelSheetRef}>
           <article className="label-card brother-parent-label overflow-hidden">
             <div className="security-dots border-b border-orange-100 bg-orange-50/80 px-4 py-2.5">
               <div className="flex items-start justify-between gap-4">
