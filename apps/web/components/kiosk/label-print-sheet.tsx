@@ -25,14 +25,17 @@ export function LabelPrintSheet({
   }
 
   async function handlePrint() {
-    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=980,height=720");
     const labelMarkup = labelSheetRef.current?.outerHTML;
 
-    if (!printWindow || !labelMarkup) {
+    if (!labelMarkup) {
       return;
     }
 
-    await onMarkPrinted?.();
+    const printWindow = window.open("", "_blank", "width=980,height=720");
+
+    if (!printWindow) {
+      return;
+    }
 
     const headMarkup = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
       .map((node) => node.outerHTML)
@@ -78,6 +81,10 @@ export function LabelPrintSheet({
   </body>
 </html>`);
     printWindow.document.close();
+
+    void Promise.resolve(onMarkPrinted?.()).catch((error) => {
+      console.error("Failed to mark labels as printed", error);
+    });
   }
 
   return (
