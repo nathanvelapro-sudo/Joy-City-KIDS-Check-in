@@ -37,7 +37,7 @@ export function LabelPrintSheet({
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Badge variant="secondary">Brother QL-800 · 62mm roll</Badge>
+            <Badge variant="secondary">Brother QL-800 · horizontal badge</Badge>
             <Button onClick={handlePrint}>
               <Printer className="h-4 w-4" />
               Print Brother labels
@@ -46,15 +46,15 @@ export function LabelPrintSheet({
         </div>
         <div className="rounded-[1.5rem] bg-orange-50 p-4 text-sm text-orange-800">
           Use the Brother QL-800 with a 62mm continuous DK roll such as DK-2251. In the print dialog,
-          choose the Brother printer, 62mm continuous paper, scale 100%, margins none, and auto cut after
-          each label.
+          choose the Brother printer, 62mm continuous paper, landscape layout, scale 100%, margins none,
+          and auto cut after each label.
         </div>
       </CardHeader>
       <CardContent className="print-preview-scroll flex justify-center pr-0 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
         <div className="label-sheet pb-2" data-template="brother-ql800">
           <article className="label-card brother-parent-label overflow-hidden">
-            <div className="security-dots border-b border-orange-100 bg-orange-50/80 p-5">
-              <div className="flex flex-col items-start gap-3">
+            <div className="security-dots border-b border-orange-100 bg-orange-50/80 px-5 py-4">
+              <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.3em] text-orange-700">
                     Parent pickup label
@@ -69,35 +69,40 @@ export function LabelPrintSheet({
                 <Badge>Pickup code</Badge>
               </div>
             </div>
-            <div className="space-y-3 p-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Security code</p>
-                <p className="mt-1 text-[2.35rem] font-semibold leading-none tracking-[0.12em] text-slate-950">
-                  {payload.session.security_code}
-                </p>
-              </div>
-              <div className="rounded-[1.1rem] border border-orange-100 bg-white p-2.5">
-                <div className="mx-auto aspect-square w-[108px]">
-                  <QRCode className="h-full w-full" value={payload.session.security_qr_token} />
+            <div className="space-y-3 px-4 py-3">
+              <div className="grid grid-cols-[1.4fr_0.9fr] gap-3">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Security code</p>
+                    <p className="mt-1 text-[2.25rem] font-semibold leading-none tracking-[0.16em] text-slate-950">
+                      {payload.session.security_code}
+                    </p>
+                  </div>
+                  <div className="rounded-[1rem] bg-slate-950 px-3 py-2.5 text-white">
+                    <p className="text-[10px] uppercase tracking-[0.28em] text-orange-200">Checked in</p>
+                    <p className="mt-1 text-[11px] leading-5">
+                      {truncate(
+                        payload.children.map((child) => child.preferred_name || child.first_name).join(", "),
+                        72,
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center gap-2 rounded-[1rem] border border-orange-100 bg-white p-2.5">
+                  <div className="aspect-square w-[92px]">
+                    <QRCode className="h-full w-full" value={payload.session.security_qr_token} />
+                  </div>
+                  <p className="text-center text-[10px] uppercase tracking-[0.24em] text-slate-500">Scan at pickup</p>
                 </div>
               </div>
-              <div className="rounded-[1.1rem] bg-slate-950 p-3 text-white">
-                <p className="text-[10px] uppercase tracking-[0.28em] text-orange-200">Checked in</p>
-                <p className="mt-1 text-[11px] leading-5">
-                  {truncate(
-                    payload.children.map((child) => child.preferred_name || child.first_name).join(", "),
-                    72,
-                  )}
-                </p>
-              </div>
-              <div className="overflow-hidden rounded-[1.1rem] border border-slate-200 bg-white px-2 py-2">
+              <div className="overflow-hidden rounded-[1rem] border border-slate-200 bg-white px-3 py-2">
                 <Barcode
                   background="transparent"
                   displayValue={false}
-                  height={24}
+                  height={28}
                   margin={0}
                   value={payload.session.security_code}
-                  width={0.78}
+                  width={1}
                 />
               </div>
             </div>
@@ -106,7 +111,7 @@ export function LabelPrintSheet({
           {payload.children.map((child) => (
             <article className="label-card brother-child-label overflow-hidden" key={child.id}>
               <div className="border-b border-orange-100 bg-slate-950 px-4 py-3 text-white">
-                <div className="flex flex-col items-start gap-3">
+                <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.28em] text-orange-200">Child room label</p>
                     <h3 className="mt-2 text-[1.5rem] font-semibold leading-tight">
@@ -116,31 +121,29 @@ export function LabelPrintSheet({
                   <Badge variant="secondary">{truncate(child.roomName, 22)}</Badge>
                 </div>
               </div>
-              <div className="space-y-3 p-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
+              <div className="space-y-3 px-4 py-3">
+                <div className="grid grid-cols-[0.8fr_1.1fr_0.9fr] gap-3">
+                  <div className="rounded-[0.95rem] bg-orange-50 px-3 py-2.5">
                     <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">
                       {child.displayLabelType === "grade" ? "Grade" : "Age"}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-slate-900">{child.displayLabel}</p>
                   </div>
-                  <div>
+                  <div className="rounded-[0.95rem] border border-orange-100 px-3 py-2.5">
+                    <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Allergies</p>
+                    <p className="mt-1 text-[11px] leading-5 text-slate-700">{truncate(child.allergyText, 72)}</p>
+                  </div>
+                  <div className="rounded-[0.95rem] border border-slate-200 px-3 py-2.5">
                     <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Code</p>
                     <p className="mt-1 text-sm font-semibold tracking-[0.08em] text-slate-900">
                       {payload.session.security_code}
                     </p>
                   </div>
                 </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Allergies</p>
-                  <p className="mt-1 text-[11px] leading-5 text-slate-700">
-                    {truncate(child.allergyText, 92)}
-                  </p>
-                </div>
-                <div>
+                <div className="rounded-[0.95rem] border border-slate-200 px-3 py-2.5">
                   <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Instructions</p>
                   <p className="mt-1 text-[11px] leading-5 text-slate-700">
-                    {truncate(child.special_instructions || "No additional instructions.", 92)}
+                    {truncate(child.special_instructions || "No additional instructions.", 132)}
                   </p>
                 </div>
               </div>

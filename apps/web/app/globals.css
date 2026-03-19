@@ -74,16 +74,16 @@ a {
 }
 
 .label-sheet[data-template="brother-ql800"] .label-card {
-  width: 62mm;
-  max-width: 62mm;
+  width: 94mm;
+  max-width: 94mm;
 }
 
 .label-sheet[data-template="brother-ql800"] .brother-parent-label {
-  min-height: 88mm;
+  min-height: 62mm;
 }
 
 .label-sheet[data-template="brother-ql800"] .brother-child-label {
-  min-height: 70mm;
+  min-height: 62mm;
 }
 
 .label-card {
@@ -113,6 +113,7 @@ a {
 
 @media print {
   @page {
+    size: 94mm 62mm;
     margin: 0;
   }
 
@@ -140,7 +141,7 @@ a {
     border: none !important;
     position: absolute !important;
     inset: 0 auto auto 0 !important;
-    width: 62mm !important;
+    width: 94mm !important;
     max-height: none !important;
     overflow: visible !important;
     margin: 0 !important;
