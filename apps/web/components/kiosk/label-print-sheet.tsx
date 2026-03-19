@@ -67,7 +67,9 @@ export function LabelPrintSheet({
     </style>
   </head>
   <body>
-    ${labelMarkup}
+    <div class="print-surface">
+      ${labelMarkup}
+    </div>
     <script>
       window.addEventListener("load", () => {
         setTimeout(() => {
