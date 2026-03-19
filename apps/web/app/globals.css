@@ -68,6 +68,24 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
+.label-sheet[data-template="brother-ql800"] {
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+.label-sheet[data-template="brother-ql800"] .label-card {
+  width: 62mm;
+  max-width: 62mm;
+}
+
+.label-sheet[data-template="brother-ql800"] .brother-parent-label {
+  min-height: 88mm;
+}
+
+.label-sheet[data-template="brother-ql800"] .brother-child-label {
+  min-height: 70mm;
+}
+
 .label-card {
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 1.25rem;
@@ -94,6 +112,10 @@ a {
 }
 
 @media print {
+  @page {
+    margin: 0;
+  }
+
   body {
     background: white;
   }
@@ -116,5 +138,10 @@ a {
     box-shadow: none;
     page-break-inside: avoid;
     margin-bottom: 0.2in;
+  }
+
+  .label-sheet[data-template="brother-ql800"] .label-card {
+    margin-bottom: 0;
+    break-after: page;
   }
 }

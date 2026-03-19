@@ -330,22 +330,19 @@ No extra Realtime setup is required after running the migration.
 
 ## Printing Instructions
 
-The kiosk label panel supports:
+The kiosk label panel is tuned for:
 
-- `4x6 thermal`
-- `Letter / A4`
+- `Brother QL-800`
+- `62mm continuous DK roll` such as `DK-2251`
 
 Recommended browser print settings:
 
-- Zebra / Brother thermal:
-  - Paper size: `4 x 6`
-  - Scale: `100%`
-  - Margins: `None`
-  - Background graphics: `On`
-- Regular printer:
-  - Paper size: `Letter` or `A4`
-  - Scale: `100%`
-  - Margins: `Default` or `Minimal`
+- Printer: `Brother QL-800`
+- Paper size: `62mm continuous`
+- Scale: `100%`
+- Margins: `None`
+- Background graphics: `On`
+- Auto cut: `After each label`
 
 The parent label includes:
 
