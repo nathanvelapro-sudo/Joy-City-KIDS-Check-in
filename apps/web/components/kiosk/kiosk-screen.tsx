@@ -153,6 +153,31 @@ export function KioskScreen({
     }
   }
 
+  function closeSelectedFamily() {
+    setSelectedFamily(null);
+    setSelectedChildren({});
+    setRoomAssignments({});
+    setFamilyNote("");
+    setLabelPayload(null);
+  }
+
+  function handleToggleFamily(
+    familyId: string,
+    options?: {
+      presetNotes?: string | null;
+      presetChildIds?: string[];
+      presetRooms?: Record<string, string>;
+      preserveLabelPayload?: boolean;
+    },
+  ) {
+    if (selectedFamily?.snapshot?.family?.id === familyId) {
+      closeSelectedFamily();
+      return;
+    }
+
+    void loadFamily(familyId, options);
+  }
+
   function handleSearch() {
     startSearch(async () => {
       const trimmed = search.trim();
@@ -826,7 +851,7 @@ export function KioskScreen({
                   <div className="space-y-3" key={result.family_id}>
                     <button
                       className="w-full rounded-[1.5rem] border border-orange-100 bg-white p-4 text-left transition hover:border-orange-300 hover:bg-orange-50"
-                      onClick={() => void loadFamily(result.family_id)}
+                      onClick={() => handleToggleFamily(result.family_id)}
                       type="button"
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -878,7 +903,7 @@ export function KioskScreen({
                     <button
                       className="w-full rounded-[1.5rem] border border-orange-100 bg-white p-4 text-left transition hover:border-orange-300 hover:bg-orange-50"
                       onClick={() =>
-                        void loadFamily(entry.family.id, {
+                        handleToggleFamily(entry.family.id, {
                           presetNotes: entry.notes,
                           presetChildIds,
                           presetRooms,
