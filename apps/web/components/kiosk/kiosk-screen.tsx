@@ -403,6 +403,118 @@ export function KioskScreen({
 
   const selectedService = initialServices.find((service) => service.id === selectedServiceId);
 
+  function renderFamilySetup() {
+    if (!selectedFamily?.snapshot) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-5 rounded-[1.5rem] border border-orange-200 bg-orange-50/70 p-5">
+        <div className="rounded-[1.5rem] bg-slate-950 p-5 text-white">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.28em] text-orange-200">Selected family</p>
+              <h3 className="mt-2 text-2xl font-semibold">
+                {selectedFamily.snapshot.family.household_name}
+              </h3>
+              <p className="mt-2 text-sm text-orange-100">
+                {formatPhone(selectedFamily.snapshot.family.primary_phone)}
+              </p>
+            </div>
+            {selectedFamily.snapshot.activeSession ? (
+              <Badge variant="success">
+                Active code {selectedFamily.snapshot.activeSession.security_code}
+              </Badge>
+            ) : (
+              <Badge variant="secondary">Ready for drop-off</Badge>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {selectedFamily.snapshot.children.map((child: any) => (
+            <div
+              className="rounded-[1.5rem] border border-orange-100 bg-white p-4"
+              key={child.id}
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex items-start gap-4">
+                  <Checkbox
+                    checked={Boolean(selectedChildren[child.id])}
+                    onChange={() => toggleChild(child.id)}
+                  />
+                  <div>
+                    <p className="text-lg font-semibold text-slate-950">
+                      {child.preferred_name || child.first_name} {child.last_name}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {formatGradeOrAge(child.grade_label, child.birthdate)}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {child.allergies ? <Badge>Allergy alert</Badge> : null}
+                      {child.medical_notes ? <Badge variant="secondary">Medical note</Badge> : null}
+                    </div>
+                    <p className="mt-3 text-sm leading-7 text-slate-700">
+                      {child.allergies || "No allergies listed"}{" "}
+                      {child.special_instructions ? `· ${child.special_instructions}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="w-full max-w-sm space-y-2">
+                  <Label htmlFor={`room-${child.id}`}>Room assignment</Label>
+                  <select
+                    className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none focus:border-orange-300"
+                    id={`room-${child.id}`}
+                    onChange={(event) =>
+                      setRoomAssignments((current) => ({
+                        ...current,
+                        [child.id]: event.target.value,
+                      }))
+                    }
+                    value={roomAssignments[child.id] ?? ""}
+                  >
+                    <option value="">Choose a room</option>
+                    {initialRooms.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        {room.name} · {room.location ?? "Main building"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="family-note">Family note for this visit</Label>
+          <Textarea
+            id="family-note"
+            onChange={(event) => setFamilyNote(event.target.value)}
+            placeholder="Add any temporary instructions for this service."
+            value={familyNote}
+          />
+        </div>
+
+        <Button
+          className="w-full"
+          disabled={issuing || Boolean(selectedFamily.snapshot.activeSession)}
+          onClick={() => void handleIssueCheckin()}
+          size="lg"
+        >
+          {issuing ? (
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          {selectedFamily.snapshot.activeSession
+            ? "Family already checked in"
+            : "Check in and generate labels"}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
@@ -715,22 +827,24 @@ export function KioskScreen({
                 </div>
               ) : (
                 results.map((result) => (
-                  <button
-                    className="w-full rounded-[1.5rem] border border-orange-100 bg-white p-4 text-left transition hover:border-orange-300 hover:bg-orange-50"
-                    key={result.family_id}
-                    onClick={() => void loadFamily(result.family_id)}
-                    type="button"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-lg font-semibold text-slate-950">{result.household_name}</p>
-                        <p className="text-sm text-slate-600">{formatPhone(result.primary_phone)}</p>
-                        {result.email ? <p className="text-sm text-slate-500">{result.email}</p> : null}
-                        <p className="mt-2 text-sm text-slate-500">{result.child_names}</p>
+                  <div className="space-y-3" key={result.family_id}>
+                    <button
+                      className="w-full rounded-[1.5rem] border border-orange-100 bg-white p-4 text-left transition hover:border-orange-300 hover:bg-orange-50"
+                      onClick={() => void loadFamily(result.family_id)}
+                      type="button"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-lg font-semibold text-slate-950">{result.household_name}</p>
+                          <p className="text-sm text-slate-600">{formatPhone(result.primary_phone)}</p>
+                          {result.email ? <p className="text-sm text-slate-500">{result.email}</p> : null}
+                          <p className="mt-2 text-sm text-slate-500">{result.child_names}</p>
+                        </div>
+                        <Badge variant="secondary">{result.child_count} kids</Badge>
                       </div>
-                      <Badge variant="secondary">{result.child_count} kids</Badge>
-                    </div>
-                  </button>
+                    </button>
+                    {selectedFamily?.snapshot?.family?.id === result.family_id ? renderFamilySetup() : null}
+                  </div>
                 ))
               )}
             </div>
@@ -764,36 +878,38 @@ export function KioskScreen({
                 );
 
                 return (
-                  <button
-                    className="w-full rounded-[1.5rem] border border-orange-100 bg-white p-4 text-left transition hover:border-orange-300 hover:bg-orange-50"
-                    key={entry.id}
-                    onClick={() =>
-                      void loadFamily(entry.family.id, {
-                        presetNotes: entry.notes,
-                        presetChildIds,
-                        presetRooms,
-                      })
-                    }
-                    type="button"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-lg font-semibold text-slate-950">
-                          {entry.family.household_name}
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          {formatPhone(entry.family.primary_phone)}
-                        </p>
-                        <p className="mt-2 text-sm text-slate-500">
-                          Requested {formatDateTime(entry.created_at)}
-                        </p>
-                        {entry.notes ? (
-                          <p className="mt-2 text-sm text-slate-700">{entry.notes}</p>
-                        ) : null}
+                  <div className="space-y-3" key={entry.id}>
+                    <button
+                      className="w-full rounded-[1.5rem] border border-orange-100 bg-white p-4 text-left transition hover:border-orange-300 hover:bg-orange-50"
+                      onClick={() =>
+                        void loadFamily(entry.family.id, {
+                          presetNotes: entry.notes,
+                          presetChildIds,
+                          presetRooms,
+                        })
+                      }
+                      type="button"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-lg font-semibold text-slate-950">
+                            {entry.family.household_name}
+                          </p>
+                          <p className="text-sm text-slate-600">
+                            {formatPhone(entry.family.primary_phone)}
+                          </p>
+                          <p className="mt-2 text-sm text-slate-500">
+                            Requested {formatDateTime(entry.created_at)}
+                          </p>
+                          {entry.notes ? (
+                            <p className="mt-2 text-sm text-slate-700">{entry.notes}</p>
+                          ) : null}
+                        </div>
+                        <Badge>{(entry.items ?? []).length} selected</Badge>
                       </div>
-                      <Badge>{(entry.items ?? []).length} selected</Badge>
-                    </div>
-                  </button>
+                    </button>
+                    {selectedFamily?.snapshot?.family?.id === entry.family.id ? renderFamilySetup() : null}
+                  </div>
                 );
               })
             )}
@@ -801,127 +917,7 @@ export function KioskScreen({
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <Card className="glass-panel">
-          <CardHeader>
-            <CardTitle className="text-2xl">Family setup</CardTitle>
-            <CardDescription>
-              Select children, adjust room assignments, and review allergy notes before drop-off.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {!selectedFamily?.snapshot ? (
-              <div className="rounded-[1.5rem] border border-dashed border-orange-200 p-6 text-sm text-muted-foreground">
-                Choose a family from search results or the queued pre-check-in list.
-              </div>
-            ) : (
-              <>
-                <div className="rounded-[1.5rem] bg-slate-950 p-5 text-white">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.28em] text-orange-200">Selected family</p>
-                      <h3 className="mt-2 text-2xl font-semibold">
-                        {selectedFamily.snapshot.family.household_name}
-                      </h3>
-                      <p className="mt-2 text-sm text-orange-100">
-                        {formatPhone(selectedFamily.snapshot.family.primary_phone)}
-                      </p>
-                    </div>
-                    {selectedFamily.snapshot.activeSession ? (
-                      <Badge variant="success">
-                        Active code {selectedFamily.snapshot.activeSession.security_code}
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Ready for drop-off</Badge>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {selectedFamily.snapshot.children.map((child: any) => (
-                    <div
-                      className="rounded-[1.5rem] border border-orange-100 bg-white p-4"
-                      key={child.id}
-                    >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="flex items-start gap-4">
-                          <Checkbox
-                            checked={Boolean(selectedChildren[child.id])}
-                            onChange={() => toggleChild(child.id)}
-                          />
-                          <div>
-                            <p className="text-lg font-semibold text-slate-950">
-                              {child.preferred_name || child.first_name} {child.last_name}
-                            </p>
-                            <p className="text-sm text-slate-500">
-                              {formatGradeOrAge(child.grade_label, child.birthdate)}
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {child.allergies ? <Badge>Allergy alert</Badge> : null}
-                              {child.medical_notes ? <Badge variant="secondary">Medical note</Badge> : null}
-                            </div>
-                            <p className="mt-3 text-sm leading-7 text-slate-700">
-                              {child.allergies || "No allergies listed"}{" "}
-                              {child.special_instructions ? `· ${child.special_instructions}` : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="w-full max-w-sm space-y-2">
-                          <Label htmlFor={`room-${child.id}`}>Room assignment</Label>
-                          <select
-                            className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none focus:border-orange-300"
-                            id={`room-${child.id}`}
-                            onChange={(event) =>
-                              setRoomAssignments((current) => ({
-                                ...current,
-                                [child.id]: event.target.value,
-                              }))
-                            }
-                            value={roomAssignments[child.id] ?? ""}
-                          >
-                            <option value="">Choose a room</option>
-                            {initialRooms.map((room) => (
-                              <option key={room.id} value={room.id}>
-                                {room.name} · {room.location ?? "Main building"}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="family-note">Family note for this visit</Label>
-                  <Textarea
-                    id="family-note"
-                    onChange={(event) => setFamilyNote(event.target.value)}
-                    placeholder="Add any temporary instructions for this service."
-                    value={familyNote}
-                  />
-                </div>
-
-                <Button
-                  className="w-full"
-                  disabled={issuing || Boolean(selectedFamily.snapshot.activeSession)}
-                  onClick={() => void handleIssueCheckin()}
-                  size="lg"
-                >
-                  {issuing ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
-                  {selectedFamily.snapshot.activeSession
-                    ? "Family already checked in"
-                    : "Check in and generate labels"}
-                </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-6">
         <LabelPrintSheet payload={labelPayload} onMarkPrinted={markPrinted} />
       </div>
     </div>
