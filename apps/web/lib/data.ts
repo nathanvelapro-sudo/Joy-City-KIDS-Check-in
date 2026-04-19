@@ -4,15 +4,18 @@ import { buildLabelPayload } from "@/lib/labels";
 
 type AppSupabase = SupabaseClient<any, "public", any>;
 
-export async function getUpcomingServices(supabase: AppSupabase) {
+function getStartOfTodayIso() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
+  return startOfToday.toISOString();
+}
 
+export async function getUpcomingServices(supabase: AppSupabase) {
   const { data } = await supabase
     .from("service_events")
     .select("*")
     .neq("status", "closed")
-    .gte("starts_at", startOfToday.toISOString())
+    .gte("starts_at", getStartOfTodayIso())
     .order("starts_at", { ascending: true })
     .limit(12);
 
@@ -65,7 +68,7 @@ export async function fetchFamilyBundle(supabase: AppSupabase, familyId: string)
     familyResult,
     childrenResult,
     authorizedPickupsResult,
-    activeSessionResult,
+    activeSessionsResult,
     notifications,
   ] = await Promise.all([
     supabase.from("families").select("*").eq("id", familyId).single(),
@@ -83,16 +86,23 @@ export async function fetchFamilyBundle(supabase: AppSupabase, familyId: string)
       .order("full_name"),
     supabase
       .from("checkin_sessions")
-      .select("*")
+      .select("*, service:service_events(id, name, starts_at, ends_at, status)")
       .eq("family_id", familyId)
       .eq("status", "checked_in")
       .order("checked_in_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(12),
     getRecentNotifications(supabase, familyId, 12),
   ]);
 
-  const activeSession = activeSessionResult.data ?? null;
+  const activeSession =
+    (activeSessionsResult.data ?? []).find((session: any) => {
+      const serviceStartsAt = session.service?.starts_at;
+      if (!serviceStartsAt) {
+        return false;
+      }
+
+      return serviceStartsAt >= getStartOfTodayIso();
+    }) ?? null;
   const activeCheckins = activeSession
     ? (
         await supabase
@@ -115,6 +125,51 @@ export async function fetchFamilyBundle(supabase: AppSupabase, familyId: string)
     activeCheckins,
     notifications,
   };
+}
+
+export async function fetchFamilyHouseholds(
+  supabase: AppSupabase,
+  query?: string,
+) {
+  const trimmedQuery = query?.trim() ?? "";
+
+  if (trimmedQuery) {
+    const { data } = await supabase.rpc("search_family_households", {
+      p_query: trimmedQuery,
+    });
+
+    return (data ?? []) as Array<{
+      family_id: string;
+      household_name: string;
+      primary_phone: string;
+      secondary_phone: string | null;
+      email: string | null;
+      child_count: number;
+      child_names: string;
+    }>;
+  }
+
+  const { data } = await supabase
+    .from("families")
+    .select("id, household_name, primary_phone, secondary_phone, email, children(first_name, last_name, active)")
+    .order("household_name", { ascending: true })
+    .limit(25);
+
+  return (data ?? []).map((family: any) => {
+    const activeChildren = (family.children ?? []).filter((child: any) => child.active !== false);
+
+    return {
+      family_id: family.id,
+      household_name: family.household_name,
+      primary_phone: family.primary_phone,
+      secondary_phone: family.secondary_phone,
+      email: family.email,
+      child_count: activeChildren.length,
+      child_names: activeChildren
+        .map((child: any) => `${child.first_name} ${child.last_name}`.trim())
+        .join(", "),
+    };
+  });
 }
 
 export async function fetchQueuedPrecheckins(
@@ -184,9 +239,10 @@ export async function getKioskBootstrap(supabase: AppSupabase) {
 export async function fetchKioskFamilyDetails(
   supabase: AppSupabase,
   familyId: string,
+  serviceEventId?: string | null,
 ) {
   const [snapshot, queuedPrecheckins] = await Promise.all([
-    fetchFamilyBundle(supabase, familyId),
+    fetchFamilyBundleForService(supabase, familyId, serviceEventId),
     supabase
       .from("precheckins")
       .select("*, items:precheckin_children(child_id, room_id)")
@@ -198,6 +254,79 @@ export async function fetchKioskFamilyDetails(
   return {
     snapshot,
     queuedPrecheckins: queuedPrecheckins.data ?? [],
+  };
+}
+
+export async function fetchFamilyBundleForService(
+  supabase: AppSupabase,
+  familyId: string,
+  serviceEventId?: string | null,
+) {
+  const [
+    familyResult,
+    childrenResult,
+    authorizedPickupsResult,
+    activeSessionsResult,
+    notifications,
+  ] = await Promise.all([
+    supabase.from("families").select("*").eq("id", familyId).single(),
+    supabase
+      .from("children")
+      .select("*")
+      .eq("family_id", familyId)
+      .eq("active", true)
+      .order("first_name"),
+    supabase
+      .from("authorized_pickups")
+      .select("*")
+      .eq("family_id", familyId)
+      .eq("can_pick_up", true)
+      .order("full_name"),
+    supabase
+      .from("checkin_sessions")
+      .select("*, service:service_events(id, name, starts_at, ends_at, status)")
+      .eq("family_id", familyId)
+      .eq("status", "checked_in")
+      .order("checked_in_at", { ascending: false })
+      .limit(12),
+    getRecentNotifications(supabase, familyId, 12),
+  ]);
+
+  if (!familyResult.data) {
+    return null;
+  }
+
+  const activeSession =
+    (activeSessionsResult.data ?? []).find((session: any) => {
+      if (serviceEventId) {
+        return session.service_event_id === serviceEventId;
+      }
+
+      const serviceStartsAt = session.service?.starts_at;
+      if (!serviceStartsAt) {
+        return false;
+      }
+
+      return serviceStartsAt >= getStartOfTodayIso();
+    }) ?? null;
+
+  const activeCheckins = activeSession
+    ? (
+        await supabase
+          .from("checkins")
+          .select("*")
+          .eq("checkin_session_id", activeSession.id)
+          .order("dropoff_time", { ascending: true })
+      ).data ?? []
+    : [];
+
+  return {
+    family: familyResult.data,
+    children: childrenResult.data ?? [],
+    authorizedPickups: authorizedPickupsResult.data ?? [],
+    activeSession,
+    activeCheckins,
+    notifications,
   };
 }
 

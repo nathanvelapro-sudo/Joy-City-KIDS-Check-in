@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { LoaderCircle, Plus, Search, Sparkles, Trash2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRealtimeKioskQueue } from "@/hooks/use-realtime-checkins";
 import {
   fetchCheckinLabelPayload,
+  fetchFamilyHouseholds,
   fetchKioskFamilyDetails,
   fetchQueuedPrecheckins,
 } from "@/lib/data";
@@ -91,6 +92,13 @@ export function KioskScreen({
   const [creatingFamily, startCreatingFamily] = useTransition();
   const queue = useRealtimeKioskQueue(selectedServiceId || null, initialPrecheckins);
 
+  useEffect(() => {
+    startSearch(async () => {
+      const defaultResults = await fetchFamilyHouseholds(supabase);
+      setResults(defaultResults);
+    });
+  }, [supabase]);
+
   function resetDeskForm() {
     setDeskFamily({
       household_name: "",
@@ -111,7 +119,7 @@ export function KioskScreen({
       preserveLabelPayload?: boolean;
     },
   ) {
-    const details = await fetchKioskFamilyDetails(supabase, familyId);
+    const details = await fetchKioskFamilyDetails(supabase, familyId, selectedServiceId || null);
 
     if (!details.snapshot) {
       toast.error("We could not load that family.");
@@ -147,24 +155,12 @@ export function KioskScreen({
 
   function handleSearch() {
     startSearch(async () => {
-      if (search.trim().length < 2) {
-        toast.error("Search by last name, phone digits, or email.");
-        return;
-      }
-
       const trimmed = search.trim();
-      const { data, error } = await supabase.rpc("search_family_households", {
-        p_query: trimmed,
-      });
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
+      const householdMatches = await fetchFamilyHouseholds(supabase, trimmed);
 
       const merged = new Map<string, SearchResult>();
 
-      ((data ?? []) as SearchResult[]).forEach((result) => {
+      householdMatches.forEach((result) => {
         merged.set(result.family_id, result);
       });
 
