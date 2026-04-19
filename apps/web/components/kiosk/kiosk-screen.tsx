@@ -102,6 +102,7 @@ export function KioskScreen({
   const supabase = useMemo(() => createClient(), []);
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [searchState, setSearchState] = useState<"default" | "filtered">("default");
   const [selectedFamily, setSelectedFamily] = useState<any | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string>(
     initialServiceId ?? initialServices[0]?.id ?? "",
@@ -135,6 +136,7 @@ export function KioskScreen({
     startSearch(async () => {
       const defaultResults = await fetchFamilyHouseholds(supabase);
       setResults(defaultResults);
+      setSearchState("default");
     });
   }, [supabase]);
 
@@ -487,7 +489,9 @@ export function KioskScreen({
       }
 
       setDeskMode(false);
+      closeSelectedFamily();
       setResults(Array.from(merged.values()));
+      setSearchState(trimmed ? "filtered" : "default");
     });
   }
 
@@ -1537,7 +1541,9 @@ export function KioskScreen({
                 </div>
               ) : results.length === 0 ? (
                 <div className="rounded-[1.5rem] border border-dashed border-orange-200 p-5 text-sm text-muted-foreground">
-                  Search results will appear here. If a family is brand new, use the New family at desk button.
+                  {searchState === "filtered" && search.trim()
+                    ? `No families found for "${search.trim()}". Try a different last name, phone number, or email, or add them as a new family at the desk.`
+                    : "Search results will appear here. If a family is brand new, use the New family at desk button."}
                 </div>
               ) : (
                 results.map((result) => (
