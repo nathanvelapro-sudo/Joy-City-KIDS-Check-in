@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import QRCode from "react-qr-code";
-import { LoaderCircle, Plus, ShieldCheck } from "lucide-react";
+import { LoaderCircle, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -27,6 +27,62 @@ function backgroundCheckVariant(status: string) {
   if (status === "approved") return "success";
   if (status === "expired" || status === "rejected") return "danger";
   return "secondary";
+}
+
+function createBlankChildForm() {
+  return {
+    first_name: "",
+    last_name: "",
+    preferred_name: "",
+    birthdate: "",
+    grade_label: "",
+    allergies: "",
+    medical_notes: "",
+    special_instructions: "",
+    default_room_id: "",
+  };
+}
+
+function createBlankPickupForm() {
+  return {
+    full_name: "",
+    phone: "",
+    relationship: "",
+    email: "",
+    notes: "",
+  };
+}
+
+function createChildEditorState(child?: any) {
+  if (!child) {
+    return createBlankChildForm();
+  }
+
+  return {
+    first_name: child.first_name ?? "",
+    last_name: child.last_name ?? "",
+    preferred_name: child.preferred_name ?? "",
+    birthdate: child.birthdate ?? "",
+    grade_label: child.grade_label ?? "",
+    allergies: child.allergies ?? "",
+    medical_notes: child.medical_notes ?? "",
+    special_instructions: child.special_instructions ?? "",
+    default_room_id: child.default_room_id ?? "",
+  };
+}
+
+function createPickupEditorState(pickup?: any) {
+  if (!pickup) {
+    return createBlankPickupForm();
+  }
+
+  return {
+    full_name: pickup.full_name ?? "",
+    phone: pickup.phone ?? "",
+    relationship: pickup.relationship ?? "",
+    email: pickup.email ?? "",
+    notes: pickup.notes ?? "",
+  };
 }
 
 export function ParentPortal({
@@ -62,24 +118,12 @@ export function ParentPortal({
     state: "",
     postal_code: "",
   });
-  const [childForm, setChildForm] = useState({
-    first_name: "",
-    last_name: "",
-    preferred_name: "",
-    birthdate: "",
-    grade_label: "",
-    allergies: "",
-    medical_notes: "",
-    special_instructions: "",
-    default_room_id: "",
-  });
-  const [pickupForm, setPickupForm] = useState({
-    full_name: "",
-    phone: "",
-    relationship: "",
-    email: "",
-    notes: "",
-  });
+  const [childForm, setChildForm] = useState(createBlankChildForm());
+  const [pickupForm, setPickupForm] = useState(createBlankPickupForm());
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [editingChildForm, setEditingChildForm] = useState(createBlankChildForm());
+  const [editingPickupId, setEditingPickupId] = useState<string | null>(null);
+  const [editingPickupForm, setEditingPickupForm] = useState(createBlankPickupForm());
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -140,17 +184,7 @@ export function ParentPortal({
         return;
       }
 
-      setChildForm({
-        first_name: "",
-        last_name: "",
-        preferred_name: "",
-        birthdate: "",
-        grade_label: "",
-        allergies: "",
-        medical_notes: "",
-        special_instructions: "",
-        default_room_id: "",
-      });
+      setChildForm(createBlankChildForm());
       toast.success("Child added.");
     });
   }
@@ -175,14 +209,123 @@ export function ParentPortal({
         return;
       }
 
-      setPickupForm({
-        full_name: "",
-        phone: "",
-        relationship: "",
-        email: "",
-        notes: "",
-      });
+      setPickupForm(createBlankPickupForm());
       toast.success("Approved pickup adult added.");
+    });
+  }
+
+  function handleStartEditChild(child: any) {
+    setEditingChildId(child.id);
+    setEditingChildForm(createChildEditorState(child));
+  }
+
+  function handleStartEditPickup(pickup: any) {
+    setEditingPickupId(pickup.id);
+    setEditingPickupForm(createPickupEditorState(pickup));
+  }
+
+  function handleSaveChild(childId: string) {
+    if (!editingChildForm.first_name.trim() || !editingChildForm.last_name.trim() || !editingChildForm.birthdate) {
+      toast.error("First name, last name, and birthdate are required.");
+      return;
+    }
+
+    startTransition(async () => {
+      const { error } = await supabase
+        .from("children")
+        .update({
+          first_name: editingChildForm.first_name.trim(),
+          last_name: editingChildForm.last_name.trim(),
+          preferred_name: editingChildForm.preferred_name.trim() || null,
+          birthdate: editingChildForm.birthdate,
+          grade_label: editingChildForm.grade_label.trim() || null,
+          allergies: editingChildForm.allergies.trim() || null,
+          medical_notes: editingChildForm.medical_notes.trim() || null,
+          special_instructions: editingChildForm.special_instructions.trim() || null,
+          default_room_id: editingChildForm.default_room_id || null,
+        })
+        .eq("id", childId);
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      setEditingChildId(null);
+      setEditingChildForm(createBlankChildForm());
+      toast.success("Child updated.");
+    });
+  }
+
+  function handleRemoveChild(childId: string) {
+    startTransition(async () => {
+      const { error } = await supabase
+        .from("children")
+        .update({ active: false })
+        .eq("id", childId);
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      if (editingChildId === childId) {
+        setEditingChildId(null);
+        setEditingChildForm(createBlankChildForm());
+      }
+
+      toast.success("Child removed from the household list.");
+    });
+  }
+
+  function handleSavePickup(pickupId: string) {
+    if (!editingPickupForm.full_name.trim()) {
+      toast.error("Pickup adult name is required.");
+      return;
+    }
+
+    startTransition(async () => {
+      const { error } = await supabase
+        .from("authorized_pickups")
+        .update({
+          full_name: editingPickupForm.full_name.trim(),
+          phone: editingPickupForm.phone.trim() || null,
+          relationship: editingPickupForm.relationship.trim() || null,
+          email: editingPickupForm.email.trim() || null,
+          notes: editingPickupForm.notes.trim() || null,
+          can_pick_up: true,
+        })
+        .eq("id", pickupId);
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      setEditingPickupId(null);
+      setEditingPickupForm(createBlankPickupForm());
+      toast.success("Approved pickup adult updated.");
+    });
+  }
+
+  function handleRemovePickup(pickupId: string) {
+    startTransition(async () => {
+      const { error } = await supabase
+        .from("authorized_pickups")
+        .update({ can_pick_up: false })
+        .eq("id", pickupId);
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      if (editingPickupId === pickupId) {
+        setEditingPickupId(null);
+        setEditingPickupForm(createBlankPickupForm());
+      }
+
+      toast.success("Approved pickup adult removed from the active list.");
     });
   }
 
@@ -495,126 +638,300 @@ export function ParentPortal({
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="glass-panel">
           <CardHeader>
-            <CardTitle>Add a child</CardTitle>
+            <CardTitle>Manage children</CardTitle>
             <CardDescription>
-              Keep grade, allergy notes, medical notes, and room assignment up to date.
+              Add new children, edit their information, or remove them from the active household list.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form className="grid gap-4 md:grid-cols-2" onSubmit={handleAddChild}>
-              <div className="space-y-2">
-                <Label htmlFor="child-first-name">First name</Label>
-                <Input
-                  id="child-first-name"
-                  onChange={(event) =>
-                    setChildForm((current) => ({ ...current, first_name: event.target.value }))
-                  }
-                  required
-                  value={childForm.first_name}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="child-last-name">Last name</Label>
-                <Input
-                  id="child-last-name"
-                  onChange={(event) =>
-                    setChildForm((current) => ({ ...current, last_name: event.target.value }))
-                  }
-                  required
-                  value={childForm.last_name}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="preferred-name">Preferred name</Label>
-                <Input
-                  id="preferred-name"
-                  onChange={(event) =>
-                    setChildForm((current) => ({ ...current, preferred_name: event.target.value }))
-                  }
-                  value={childForm.preferred_name}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="birthdate">Birthdate</Label>
-                <Input
-                  id="birthdate"
-                  onChange={(event) =>
-                    setChildForm((current) => ({ ...current, birthdate: event.target.value }))
-                  }
-                  required
-                  type="date"
-                  value={childForm.birthdate}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="grade-label">Grade</Label>
-                <Input
-                  id="grade-label"
-                  onChange={(event) =>
-                    setChildForm((current) => ({ ...current, grade_label: event.target.value }))
-                  }
-                  placeholder="Kindergarten"
-                  value={childForm.grade_label}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="room">Default room</Label>
-                <select
-                  className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none"
-                  id="room"
-                  onChange={(event) =>
-                    setChildForm((current) => ({ ...current, default_room_id: event.target.value }))
-                  }
-                  value={childForm.default_room_id}
-                >
-                  <option value="">Choose room</option>
-                  {rooms.map((room) => (
-                    <option key={room.id} value={room.id}>
-                      {room.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="allergies">Allergies</Label>
-                <Textarea
-                  id="allergies"
-                  onChange={(event) =>
-                    setChildForm((current) => ({ ...current, allergies: event.target.value }))
-                  }
-                  value={childForm.allergies}
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="medical-notes">Medical notes</Label>
-                <Textarea
-                  id="medical-notes"
-                  onChange={(event) =>
-                    setChildForm((current) => ({ ...current, medical_notes: event.target.value }))
-                  }
-                  value={childForm.medical_notes}
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="special-instructions">Special instructions</Label>
-                <Textarea
-                  id="special-instructions"
-                  onChange={(event) =>
-                    setChildForm((current) => ({
-                      ...current,
-                      special_instructions: event.target.value,
-                    }))
-                  }
-                  value={childForm.special_instructions}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Button disabled={pending} type="submit">
-                  {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  Add child
-                </Button>
-              </div>
-            </form>
+          <CardContent className="space-y-5">
+            <div className="space-y-3">
+              {snapshot.children.length === 0 ? (
+                <div className="rounded-[1.25rem] border border-dashed border-orange-200 p-5 text-sm text-muted-foreground">
+                  No children added yet.
+                </div>
+              ) : (
+                snapshot.children.map((child: any) => (
+                  <div
+                    className="rounded-[1.25rem] border border-orange-100 bg-white p-4"
+                    key={child.id}
+                  >
+                    {editingChildId === child.id ? (
+                      <div className="space-y-4">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>First name</Label>
+                            <Input
+                              onChange={(event) =>
+                                setEditingChildForm((current) => ({ ...current, first_name: event.target.value }))
+                              }
+                              value={editingChildForm.first_name}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Last name</Label>
+                            <Input
+                              onChange={(event) =>
+                                setEditingChildForm((current) => ({ ...current, last_name: event.target.value }))
+                              }
+                              value={editingChildForm.last_name}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Preferred name</Label>
+                            <Input
+                              onChange={(event) =>
+                                setEditingChildForm((current) => ({
+                                  ...current,
+                                  preferred_name: event.target.value,
+                                }))
+                              }
+                              value={editingChildForm.preferred_name}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Birthdate</Label>
+                            <Input
+                              onChange={(event) =>
+                                setEditingChildForm((current) => ({ ...current, birthdate: event.target.value }))
+                              }
+                              type="date"
+                              value={editingChildForm.birthdate}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Grade</Label>
+                            <Input
+                              onChange={(event) =>
+                                setEditingChildForm((current) => ({ ...current, grade_label: event.target.value }))
+                              }
+                              value={editingChildForm.grade_label}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Default room</Label>
+                            <select
+                              className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none"
+                              onChange={(event) =>
+                                setEditingChildForm((current) => ({
+                                  ...current,
+                                  default_room_id: event.target.value,
+                                }))
+                              }
+                              value={editingChildForm.default_room_id}
+                            >
+                              <option value="">Choose room</option>
+                              {rooms.map((room) => (
+                                <option key={room.id} value={room.id}>
+                                  {room.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Allergies</Label>
+                            <Textarea
+                              onChange={(event) =>
+                                setEditingChildForm((current) => ({ ...current, allergies: event.target.value }))
+                              }
+                              value={editingChildForm.allergies}
+                            />
+                          </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Medical notes</Label>
+                            <Textarea
+                              onChange={(event) =>
+                                setEditingChildForm((current) => ({
+                                  ...current,
+                                  medical_notes: event.target.value,
+                                }))
+                              }
+                              value={editingChildForm.medical_notes}
+                            />
+                          </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Special instructions</Label>
+                            <Textarea
+                              onChange={(event) =>
+                                setEditingChildForm((current) => ({
+                                  ...current,
+                                  special_instructions: event.target.value,
+                                }))
+                              }
+                              value={editingChildForm.special_instructions}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <Button disabled={pending} onClick={() => handleSaveChild(child.id)} type="button">
+                            {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                            Save child
+                          </Button>
+                          <Button
+                            disabled={pending}
+                            onClick={() => {
+                              setEditingChildId(null);
+                              setEditingChildForm(createBlankChildForm());
+                            }}
+                            type="button"
+                            variant="secondary"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-lg font-semibold text-slate-950">
+                              {child.preferred_name || child.first_name} {child.last_name}
+                            </p>
+                            <p className="text-sm text-slate-500">
+                              {formatGradeOrAge(child.grade_label, child.birthdate)}
+                              {child.default_room_id
+                                ? ` · ${rooms.find((room) => room.id === child.default_room_id)?.name ?? "Room assigned"}`
+                                : ""}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button onClick={() => handleStartEditChild(child)} size="sm" type="button" variant="secondary">
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </Button>
+                            <Button onClick={() => handleRemoveChild(child.id)} size="sm" type="button" variant="danger">
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-sm leading-7 text-slate-700">
+                          {child.allergies || "No allergies listed"}
+                          {child.medical_notes ? ` · ${child.medical_notes}` : ""}
+                          {child.special_instructions ? ` · ${child.special_instructions}` : ""}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="border-t border-orange-100 pt-5">
+              <form className="grid gap-4 md:grid-cols-2" onSubmit={handleAddChild}>
+                <div className="space-y-2">
+                  <Label htmlFor="child-first-name">First name</Label>
+                  <Input
+                    id="child-first-name"
+                    onChange={(event) =>
+                      setChildForm((current) => ({ ...current, first_name: event.target.value }))
+                    }
+                    required
+                    value={childForm.first_name}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="child-last-name">Last name</Label>
+                  <Input
+                    id="child-last-name"
+                    onChange={(event) =>
+                      setChildForm((current) => ({ ...current, last_name: event.target.value }))
+                    }
+                    required
+                    value={childForm.last_name}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="preferred-name">Preferred name</Label>
+                  <Input
+                    id="preferred-name"
+                    onChange={(event) =>
+                      setChildForm((current) => ({ ...current, preferred_name: event.target.value }))
+                    }
+                    value={childForm.preferred_name}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="birthdate">Birthdate</Label>
+                  <Input
+                    id="birthdate"
+                    onChange={(event) =>
+                      setChildForm((current) => ({ ...current, birthdate: event.target.value }))
+                    }
+                    required
+                    type="date"
+                    value={childForm.birthdate}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="grade-label">Grade</Label>
+                  <Input
+                    id="grade-label"
+                    onChange={(event) =>
+                      setChildForm((current) => ({ ...current, grade_label: event.target.value }))
+                    }
+                    placeholder="Kindergarten"
+                    value={childForm.grade_label}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="room">Default room</Label>
+                  <select
+                    className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none"
+                    id="room"
+                    onChange={(event) =>
+                      setChildForm((current) => ({ ...current, default_room_id: event.target.value }))
+                    }
+                    value={childForm.default_room_id}
+                  >
+                    <option value="">Choose room</option>
+                    {rooms.map((room) => (
+                      <option key={room.id} value={room.id}>
+                        {room.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="allergies">Allergies</Label>
+                  <Textarea
+                    id="allergies"
+                    onChange={(event) =>
+                      setChildForm((current) => ({ ...current, allergies: event.target.value }))
+                    }
+                    value={childForm.allergies}
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="medical-notes">Medical notes</Label>
+                  <Textarea
+                    id="medical-notes"
+                    onChange={(event) =>
+                      setChildForm((current) => ({ ...current, medical_notes: event.target.value }))
+                    }
+                    value={childForm.medical_notes}
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="special-instructions">Special instructions</Label>
+                  <Textarea
+                    id="special-instructions"
+                    onChange={(event) =>
+                      setChildForm((current) => ({
+                        ...current,
+                        special_instructions: event.target.value,
+                      }))
+                    }
+                    value={childForm.special_instructions}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Button disabled={pending} type="submit">
+                    {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    Add child
+                  </Button>
+                </div>
+              </form>
+            </div>
           </CardContent>
         </Card>
 
@@ -622,92 +939,191 @@ export function ParentPortal({
           <CardHeader>
             <CardTitle>Approved pickup adults</CardTitle>
             <CardDescription>
-              Only adults listed here can be selected at secure pickup unless an admin performs a manual override.
+              Keep pickup adults current, edit their contact details, or remove them from the active list.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-3">
-              {snapshot.authorizedPickups.map((pickup: any) => (
-                <div
-                  className="flex items-center justify-between rounded-[1.25rem] border border-orange-100 bg-white p-4"
-                  key={pickup.id}
-                >
-                  <div>
-                    <p className="font-semibold text-slate-950">{pickup.full_name}</p>
-                    <p className="text-sm text-slate-500">
-                      {pickup.relationship || "Approved adult"} · {formatPhone(pickup.phone)}
-                    </p>
-                  </div>
-                  <Badge variant={backgroundCheckVariant(pickup.can_pick_up ? "approved" : "expired") as any}>
-                    {pickup.can_pick_up ? "approved" : "inactive"}
-                  </Badge>
+              {snapshot.authorizedPickups.length === 0 ? (
+                <div className="rounded-[1.25rem] border border-dashed border-orange-200 p-5 text-sm text-muted-foreground">
+                  No approved pickup adults yet.
                 </div>
-              ))}
+              ) : (
+                snapshot.authorizedPickups.map((pickup: any) => (
+                  <div
+                    className="rounded-[1.25rem] border border-orange-100 bg-white p-4"
+                    key={pickup.id}
+                  >
+                    {editingPickupId === pickup.id ? (
+                      <div className="space-y-4">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Full name</Label>
+                            <Input
+                              onChange={(event) =>
+                                setEditingPickupForm((current) => ({ ...current, full_name: event.target.value }))
+                              }
+                              value={editingPickupForm.full_name}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Phone</Label>
+                            <Input
+                              onChange={(event) =>
+                                setEditingPickupForm((current) => ({ ...current, phone: event.target.value }))
+                              }
+                              value={editingPickupForm.phone}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Relationship</Label>
+                            <Input
+                              onChange={(event) =>
+                                setEditingPickupForm((current) => ({
+                                  ...current,
+                                  relationship: event.target.value,
+                                }))
+                              }
+                              value={editingPickupForm.relationship}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Email</Label>
+                            <Input
+                              onChange={(event) =>
+                                setEditingPickupForm((current) => ({ ...current, email: event.target.value }))
+                              }
+                              type="email"
+                              value={editingPickupForm.email}
+                            />
+                          </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Notes</Label>
+                            <Textarea
+                              onChange={(event) =>
+                                setEditingPickupForm((current) => ({ ...current, notes: event.target.value }))
+                              }
+                              value={editingPickupForm.notes}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <Button disabled={pending} onClick={() => handleSavePickup(pickup.id)} type="button">
+                            {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                            Save adult
+                          </Button>
+                          <Button
+                            disabled={pending}
+                            onClick={() => {
+                              setEditingPickupId(null);
+                              setEditingPickupForm(createBlankPickupForm());
+                            }}
+                            type="button"
+                            variant="secondary"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-950">{pickup.full_name}</p>
+                            <p className="text-sm text-slate-500">
+                              {pickup.relationship || "Approved adult"} · {formatPhone(pickup.phone)}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant={backgroundCheckVariant(pickup.can_pick_up ? "approved" : "expired") as any}>
+                              {pickup.can_pick_up ? "approved" : "inactive"}
+                            </Badge>
+                            <Button onClick={() => handleStartEditPickup(pickup)} size="sm" type="button" variant="secondary">
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </Button>
+                            <Button onClick={() => handleRemovePickup(pickup.id)} size="sm" type="button" variant="danger">
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                        {pickup.notes ? (
+                          <p className="text-sm leading-7 text-slate-700">{pickup.notes}</p>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
-            <form className="grid gap-4 md:grid-cols-2" onSubmit={handleAddPickup}>
-              <div className="space-y-2">
-                <Label htmlFor="pickup-name">Full name</Label>
-                <Input
-                  id="pickup-name"
-                  onChange={(event) =>
-                    setPickupForm((current) => ({ ...current, full_name: event.target.value }))
-                  }
-                  required
-                  value={pickupForm.full_name}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pickup-phone">Phone</Label>
-                <Input
-                  id="pickup-phone"
-                  onChange={(event) =>
-                    setPickupForm((current) => ({ ...current, phone: event.target.value }))
-                  }
-                  value={pickupForm.phone}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pickup-relationship">Relationship</Label>
-                <Input
-                  id="pickup-relationship"
-                  onChange={(event) =>
-                    setPickupForm((current) => ({
-                      ...current,
-                      relationship: event.target.value,
-                    }))
-                  }
-                  placeholder="Grandparent"
-                  value={pickupForm.relationship}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pickup-email">Email</Label>
-                <Input
-                  id="pickup-email"
-                  onChange={(event) =>
-                    setPickupForm((current) => ({ ...current, email: event.target.value }))
-                  }
-                  type="email"
-                  value={pickupForm.email}
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="pickup-notes">Notes</Label>
-                <Textarea
-                  id="pickup-notes"
-                  onChange={(event) =>
-                    setPickupForm((current) => ({ ...current, notes: event.target.value }))
-                  }
-                  value={pickupForm.notes}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Button disabled={pending} type="submit" variant="secondary">
-                  {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  Add approved adult
-                </Button>
-              </div>
-            </form>
+
+            <div className="border-t border-orange-100 pt-5">
+              <form className="grid gap-4 md:grid-cols-2" onSubmit={handleAddPickup}>
+                <div className="space-y-2">
+                  <Label htmlFor="pickup-name">Full name</Label>
+                  <Input
+                    id="pickup-name"
+                    onChange={(event) =>
+                      setPickupForm((current) => ({ ...current, full_name: event.target.value }))
+                    }
+                    required
+                    value={pickupForm.full_name}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pickup-phone">Phone</Label>
+                  <Input
+                    id="pickup-phone"
+                    onChange={(event) =>
+                      setPickupForm((current) => ({ ...current, phone: event.target.value }))
+                    }
+                    value={pickupForm.phone}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pickup-relationship">Relationship</Label>
+                  <Input
+                    id="pickup-relationship"
+                    onChange={(event) =>
+                      setPickupForm((current) => ({
+                        ...current,
+                        relationship: event.target.value,
+                      }))
+                    }
+                    placeholder="Grandparent"
+                    value={pickupForm.relationship}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pickup-email">Email</Label>
+                  <Input
+                    id="pickup-email"
+                    onChange={(event) =>
+                      setPickupForm((current) => ({ ...current, email: event.target.value }))
+                    }
+                    type="email"
+                    value={pickupForm.email}
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="pickup-notes">Notes</Label>
+                  <Textarea
+                    id="pickup-notes"
+                    onChange={(event) =>
+                      setPickupForm((current) => ({ ...current, notes: event.target.value }))
+                    }
+                    value={pickupForm.notes}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Button disabled={pending} type="submit" variant="secondary">
+                    {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                    Add approved adult
+                  </Button>
+                </div>
+              </form>
+            </div>
           </CardContent>
         </Card>
       </div>

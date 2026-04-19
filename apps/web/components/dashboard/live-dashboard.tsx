@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Bell, Clock3, LoaderCircle, MessageSquareText } from "lucide-react";
+import { Bell, Clock3, LoaderCircle, MessageSquareText, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useRealtimeRoomBoard } from "@/hooks/use-realtime-room-board";
 import { QUICK_MESSAGE_TEMPLATES } from "@/lib/constants";
-import { fetchRoomBoard, getRecentNotifications } from "@/lib/data";
+import { fetchRoomBoard, getRecentNotifications, getUpcomingServices } from "@/lib/data";
 import { createClient } from "@/lib/supabase/browser";
 import {
   formatDateTime,
@@ -23,6 +25,18 @@ function statusVariant(status: string) {
   if (status === "approved") return "success";
   if (status === "expired" || status === "rejected") return "danger";
   return "secondary";
+}
+
+function toLocalDateTimeValue(value: Date) {
+  const localValue = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
+  return localValue.toISOString().slice(0, 16);
+}
+
+function buildDefaultServiceStart() {
+  const next = new Date();
+  next.setDate(next.getDate() + 7);
+  next.setHours(10, 30, 0, 0);
+  return toLocalDateTimeValue(next);
 }
 
 export function LiveDashboard({
@@ -41,10 +55,18 @@ export function LiveDashboard({
   volunteers: any[];
 }) {
   const supabase = useMemo(() => createClient(), []);
+  const [services, setServices] = useState<any[]>(initialServices);
   const [selectedServiceId, setSelectedServiceId] = useState<string>(
     initialCurrentService?.id ?? initialServices[0]?.id ?? "",
   );
+  const [serviceForm, setServiceForm] = useState({
+    name: "Sunday Service",
+    campus: "Main Campus",
+    starts_at: buildDefaultServiceStart(),
+    ends_at: "",
+  });
   const [sendingKey, startSending] = useTransition();
+  const [savingService, startSavingService] = useTransition();
   const { board, notifications, setBoard, setNotifications } = useRealtimeRoomBoard<any, any>(
     selectedServiceId || null,
     initialBoard,
@@ -105,6 +127,52 @@ export function LiveDashboard({
     });
   }
 
+  function handleCreateService(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!serviceForm.name.trim() || !serviceForm.starts_at) {
+      toast.error("Service name and date/time are required.");
+      return;
+    }
+
+    startSavingService(async () => {
+      const { error } = await supabase.from("service_events").insert({
+        name: serviceForm.name.trim(),
+        campus: serviceForm.campus.trim() || "Main Campus",
+        starts_at: new Date(serviceForm.starts_at).toISOString(),
+        ends_at: serviceForm.ends_at ? new Date(serviceForm.ends_at).toISOString() : null,
+        status: "scheduled",
+      });
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      const nextServices = await getUpcomingServices(supabase);
+      setServices(nextServices);
+
+      const newestService = nextServices.find(
+        (service) =>
+          service.name === serviceForm.name.trim() &&
+          service.starts_at === new Date(serviceForm.starts_at).toISOString(),
+      );
+
+      if (newestService?.id) {
+        setSelectedServiceId(newestService.id);
+      } else if (nextServices[0]?.id) {
+        setSelectedServiceId(nextServices[0].id);
+      }
+
+      setServiceForm((current) => ({
+        ...current,
+        starts_at: buildDefaultServiceStart(),
+        ends_at: "",
+      }));
+      toast.success("Service event created.");
+    });
+  }
+
   const activeKids = board.filter((entry) => entry.status === "checked_in");
   const groups = initialRooms.map((room) => ({
     room,
@@ -128,7 +196,7 @@ export function LiveDashboard({
                 onChange={(event) => setSelectedServiceId(event.target.value)}
                 value={selectedServiceId}
               >
-                {initialServices.map((service) => (
+                {services.map((service) => (
                   <option key={service.id} value={service.id}>
                     {service.name}
                   </option>
@@ -211,6 +279,72 @@ export function LiveDashboard({
         </Card>
 
         <div className="space-y-6">
+          <Card className="glass-panel">
+            <CardHeader>
+              <CardTitle>Upcoming service dates</CardTitle>
+              <CardDescription>
+                Create the next service here. Past dates automatically fall out of the dropdowns.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={handleCreateService}>
+                <div className="space-y-2">
+                  <Label htmlFor="service-name">Service name</Label>
+                  <Input
+                    id="service-name"
+                    onChange={(event) =>
+                      setServiceForm((current) => ({ ...current, name: event.target.value }))
+                    }
+                    placeholder="Sunday 10:30 AM"
+                    value={serviceForm.name}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="service-campus">Campus</Label>
+                  <Input
+                    id="service-campus"
+                    onChange={(event) =>
+                      setServiceForm((current) => ({ ...current, campus: event.target.value }))
+                    }
+                    value={serviceForm.campus}
+                  />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="service-starts-at">Starts</Label>
+                    <Input
+                      id="service-starts-at"
+                      onChange={(event) =>
+                        setServiceForm((current) => ({ ...current, starts_at: event.target.value }))
+                      }
+                      type="datetime-local"
+                      value={serviceForm.starts_at}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="service-ends-at">Ends</Label>
+                    <Input
+                      id="service-ends-at"
+                      onChange={(event) =>
+                        setServiceForm((current) => ({ ...current, ends_at: event.target.value }))
+                      }
+                      type="datetime-local"
+                      value={serviceForm.ends_at}
+                    />
+                  </div>
+                </div>
+                <Button disabled={savingService} type="submit" variant="secondary">
+                  {savingService ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  Add service date
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
           <Card className="glass-panel">
             <CardHeader>
               <CardTitle>Recent alerts</CardTitle>

@@ -436,6 +436,7 @@ export function KioskScreen({
             </div>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
               <Input
+                className="h-14 px-5 text-base sm:text-lg"
                 onChange={(event) => setSearch(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
@@ -447,11 +448,11 @@ export function KioskScreen({
                 value={search}
               />
               <div className="grid gap-3 sm:grid-cols-2">
-                <Button disabled={searching} onClick={handleSearch}>
+                <Button className="h-14 px-6 text-base" disabled={searching} onClick={handleSearch}>
                   {searching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   Search
                 </Button>
-                <Button onClick={handleOpenDeskMode} type="button" variant="secondary">
+                <Button className="h-14 px-6 text-base" onClick={handleOpenDeskMode} type="button" variant="secondary">
                   <UserPlus className="h-4 w-4" />
                   New family at desk
                 </Button>

@@ -5,12 +5,16 @@ import { buildLabelPayload } from "@/lib/labels";
 type AppSupabase = SupabaseClient<any, "public", any>;
 
 export async function getUpcomingServices(supabase: AppSupabase) {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
   const { data } = await supabase
     .from("service_events")
     .select("*")
     .neq("status", "closed")
+    .gte("starts_at", startOfToday.toISOString())
     .order("starts_at", { ascending: true })
-    .limit(8);
+    .limit(12);
 
   return data ?? [];
 }
@@ -65,8 +69,18 @@ export async function fetchFamilyBundle(supabase: AppSupabase, familyId: string)
     notifications,
   ] = await Promise.all([
     supabase.from("families").select("*").eq("id", familyId).single(),
-    supabase.from("children").select("*").eq("family_id", familyId).order("first_name"),
-    supabase.from("authorized_pickups").select("*").eq("family_id", familyId).order("full_name"),
+    supabase
+      .from("children")
+      .select("*")
+      .eq("family_id", familyId)
+      .eq("active", true)
+      .order("first_name"),
+    supabase
+      .from("authorized_pickups")
+      .select("*")
+      .eq("family_id", familyId)
+      .eq("can_pick_up", true)
+      .order("full_name"),
     supabase
       .from("checkin_sessions")
       .select("*")
@@ -282,6 +296,29 @@ export async function fetchPickupSearchResult(
     return null;
   }
 
+  return fetchPickupSessionResult(supabase, sessionMatch.session_id, sessionMatch);
+}
+
+export async function fetchPickupSessionResult(
+  supabase: AppSupabase,
+  sessionId: string,
+  existingSession?: any,
+) {
+  const sessionMatch =
+    existingSession ??
+    (
+      await supabase
+        .from("checkin_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .eq("status", "checked_in")
+        .maybeSingle()
+    ).data;
+
+  if (!sessionMatch) {
+    return null;
+  }
+
   const [bundle, checkins, service] = await Promise.all([
     fetchFamilyBundle(supabase, sessionMatch.family_id),
     supabase
@@ -301,6 +338,36 @@ export async function fetchPickupSearchResult(
     service: service.data ?? null,
     bundle,
     checkins: checkins.data ?? [],
+  };
+}
+
+export async function fetchPickupRoster(
+  supabase: AppSupabase,
+  serviceEventId: string,
+) {
+  const { data } = await supabase
+    .from("checkin_sessions")
+    .select(
+      "id, family_id, service_event_id, checked_in_at, security_code_last4, family:families(id, household_name, primary_phone), checkins:checkins(id, status, child:children(first_name, last_name, preferred_name))",
+    )
+    .eq("service_event_id", serviceEventId)
+    .eq("status", "checked_in")
+    .order("checked_in_at", { ascending: false });
+
+  return data ?? [];
+}
+
+export async function getPickupBootstrap(supabase: AppSupabase) {
+  const services = await getUpcomingServices(supabase);
+  const selectedServiceId = services[0]?.id as string | undefined;
+  const roster = selectedServiceId
+    ? await fetchPickupRoster(supabase, selectedServiceId)
+    : [];
+
+  return {
+    services,
+    roster,
+    selectedServiceId: selectedServiceId ?? null,
   };
 }
 
