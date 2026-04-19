@@ -132,31 +132,24 @@ export async function fetchFamilyHouseholds(
   query?: string,
 ) {
   const trimmedQuery = query?.trim() ?? "";
-
-  if (trimmedQuery) {
-    const { data } = await supabase.rpc("search_family_households", {
-      p_query: trimmedQuery,
-    });
-
-    return (data ?? []) as Array<{
-      family_id: string;
-      household_name: string;
-      primary_phone: string;
-      secondary_phone: string | null;
-      email: string | null;
-      child_count: number;
-      child_names: string;
-    }>;
-  }
-
-  const { data } = await supabase
+  const normalizedQuery = trimmedQuery.toLowerCase();
+  const normalizedDigits = trimmedQuery.replace(/\D/g, "");
+  const limit = trimmedQuery ? 250 : 25;
+  const { data, error } = await supabase
     .from("families")
     .select("id, household_name, primary_phone, secondary_phone, email, children(first_name, last_name, active)")
     .order("household_name", { ascending: true })
-    .limit(25);
+    .limit(limit);
 
-  return (data ?? []).map((family: any) => {
+  if (error) {
+    throw error;
+  }
+
+  const households = (data ?? []).map((family: any) => {
     const activeChildren = (family.children ?? []).filter((child: any) => child.active !== false);
+    const childNames = activeChildren
+      .map((child: any) => `${child.first_name} ${child.last_name}`.trim())
+      .join(", ");
 
     return {
       family_id: family.id,
@@ -165,11 +158,32 @@ export async function fetchFamilyHouseholds(
       secondary_phone: family.secondary_phone,
       email: family.email,
       child_count: activeChildren.length,
-      child_names: activeChildren
-        .map((child: any) => `${child.first_name} ${child.last_name}`.trim())
-        .join(", "),
+      child_names: childNames,
+      _search_blob: [
+        family.household_name,
+        family.primary_phone,
+        family.secondary_phone,
+        family.email,
+        ...activeChildren.map((child: any) => child.first_name),
+        ...activeChildren.map((child: any) => child.last_name),
+        childNames,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase(),
+      _digits_blob: [family.primary_phone, family.secondary_phone].filter(Boolean).join(" ").replace(/\D/g, ""),
     };
   });
+
+  const filteredHouseholds = trimmedQuery
+    ? households.filter((family) => {
+        const matchesText = family._search_blob.includes(normalizedQuery);
+        const matchesDigits = normalizedDigits ? family._digits_blob.includes(normalizedDigits) : false;
+        return matchesText || matchesDigits;
+      })
+    : households;
+
+  return filteredHouseholds.map(({ _search_blob, _digits_blob, ...family }) => family);
 }
 
 export async function fetchQueuedPrecheckins(

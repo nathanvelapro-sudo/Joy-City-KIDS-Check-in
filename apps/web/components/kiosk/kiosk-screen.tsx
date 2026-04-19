@@ -134,9 +134,13 @@ export function KioskScreen({
 
   useEffect(() => {
     startSearch(async () => {
-      const defaultResults = await fetchFamilyHouseholds(supabase);
-      setResults(defaultResults);
-      setSearchState("default");
+      try {
+        const defaultResults = await fetchFamilyHouseholds(supabase);
+        setResults(defaultResults);
+        setSearchState("default");
+      } catch (error: any) {
+        toast.error(error.message ?? "Unable to load families.");
+      }
     });
   }, [supabase]);
 
@@ -452,7 +456,14 @@ export function KioskScreen({
   function handleSearch() {
     startSearch(async () => {
       const trimmed = search.trim();
-      const householdMatches = await fetchFamilyHouseholds(supabase, trimmed);
+      let householdMatches: SearchResult[] = [];
+
+      try {
+        householdMatches = await fetchFamilyHouseholds(supabase, trimmed);
+      } catch (error: any) {
+        toast.error(error.message ?? "Unable to search families right now.");
+        return;
+      }
 
       const merged = new Map<string, SearchResult>();
 
