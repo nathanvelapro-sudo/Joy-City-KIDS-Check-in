@@ -3,11 +3,95 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildLabelPayload } from "@/lib/labels";
 
 type AppSupabase = SupabaseClient<any, "public", any>;
+const DEFAULT_SERVICE_DURATION_MINUTES = 90;
 
 function getStartOfTodayIso() {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
   return startOfToday.toISOString();
+}
+
+function getServiceEndTimestamp(service: { starts_at?: string | null; ends_at?: string | null }) {
+  const startsAt = service.starts_at ? new Date(service.starts_at).getTime() : Number.NaN;
+
+  if (Number.isNaN(startsAt)) {
+    return Number.NaN;
+  }
+
+  if (service.ends_at) {
+    const endsAt = new Date(service.ends_at).getTime();
+    if (!Number.isNaN(endsAt)) {
+      return endsAt;
+    }
+  }
+
+  return startsAt + DEFAULT_SERVICE_DURATION_MINUTES * 60_000;
+}
+
+function isServiceStillUpcomingOrLive(
+  service: { starts_at?: string | null; ends_at?: string | null },
+  referenceTime = Date.now(),
+) {
+  const serviceEnd = getServiceEndTimestamp(service);
+
+  if (!Number.isNaN(serviceEnd)) {
+    return serviceEnd >= referenceTime;
+  }
+
+  const startsAt = service.starts_at ? new Date(service.starts_at).getTime() : Number.NaN;
+  return !Number.isNaN(startsAt) && startsAt >= referenceTime;
+}
+
+function normalizeSessionRecord<T extends { id?: string; session_id?: string } | null | undefined>(session: T) {
+  if (!session) {
+    return null;
+  }
+
+  return {
+    ...session,
+    session_id: session.session_id ?? session.id ?? null,
+  };
+}
+
+function pickDefaultServiceId(services: Array<{ id: string; starts_at: string; ends_at?: string | null; status?: string }>) {
+  const now = Date.now();
+
+  const liveService = services.find((service) => {
+    const startsAt = new Date(service.starts_at).getTime();
+    const endsAt = getServiceEndTimestamp(service);
+
+    if (Number.isNaN(startsAt) || Number.isNaN(endsAt)) {
+      return false;
+    }
+
+    return startsAt <= now && endsAt >= now;
+  });
+
+  if (liveService) {
+    return liveService.id;
+  }
+
+  return services[0]?.id ?? null;
+}
+
+function selectActiveSession(
+  sessions: any[],
+  serviceEventId?: string | null,
+) {
+  if (serviceEventId) {
+    return normalizeSessionRecord(
+      sessions.find((session) => session.service_event_id === serviceEventId) ?? null,
+    );
+  }
+
+  const relevantSessions = sessions.filter((session) => isServiceStillUpcomingOrLive(session.service));
+
+  return normalizeSessionRecord(
+    relevantSessions.sort(
+      (left, right) =>
+        new Date(right.checked_in_at ?? 0).getTime() - new Date(left.checked_in_at ?? 0).getTime(),
+    )[0] ?? null,
+  );
 }
 
 export async function getUpcomingServices(supabase: AppSupabase) {
@@ -19,7 +103,7 @@ export async function getUpcomingServices(supabase: AppSupabase) {
     .order("starts_at", { ascending: true })
     .limit(12);
 
-  return data ?? [];
+  return (data ?? []).filter((service) => isServiceStillUpcomingOrLive(service));
 }
 
 export async function getRooms(supabase: AppSupabase) {
@@ -94,21 +178,13 @@ export async function fetchFamilyBundle(supabase: AppSupabase, familyId: string)
     getRecentNotifications(supabase, familyId, 12),
   ]);
 
-  const activeSession =
-    (activeSessionsResult.data ?? []).find((session: any) => {
-      const serviceStartsAt = session.service?.starts_at;
-      if (!serviceStartsAt) {
-        return false;
-      }
-
-      return serviceStartsAt >= getStartOfTodayIso();
-    }) ?? null;
+  const activeSession = selectActiveSession(activeSessionsResult.data ?? []);
   const activeCheckins = activeSession
     ? (
         await supabase
           .from("checkins")
           .select("*")
-          .eq("checkin_session_id", activeSession.id)
+          .eq("checkin_session_id", activeSession.session_id)
           .order("dropoff_time", { ascending: true })
       ).data ?? []
     : [];
@@ -239,7 +315,7 @@ export async function getKioskBootstrap(supabase: AppSupabase) {
     getRooms(supabase),
   ]);
 
-  const selectedServiceId = services[0]?.id as string | undefined;
+  const selectedServiceId = pickDefaultServiceId(services) ?? undefined;
   const precheckins = await fetchQueuedPrecheckins(supabase, selectedServiceId);
 
   return {
@@ -310,26 +386,14 @@ export async function fetchFamilyBundleForService(
     return null;
   }
 
-  const activeSession =
-    (activeSessionsResult.data ?? []).find((session: any) => {
-      if (serviceEventId) {
-        return session.service_event_id === serviceEventId;
-      }
-
-      const serviceStartsAt = session.service?.starts_at;
-      if (!serviceStartsAt) {
-        return false;
-      }
-
-      return serviceStartsAt >= getStartOfTodayIso();
-    }) ?? null;
+  const activeSession = selectActiveSession(activeSessionsResult.data ?? [], serviceEventId);
 
   const activeCheckins = activeSession
     ? (
         await supabase
           .from("checkins")
           .select("*")
-          .eq("checkin_session_id", activeSession.id)
+          .eq("checkin_session_id", activeSession.session_id)
           .order("dropoff_time", { ascending: true })
       ).data ?? []
     : [];
@@ -404,7 +468,7 @@ export async function fetchRoomBoard(
 
 export async function getDashboardSnapshot(supabase: AppSupabase) {
   const services = await getUpcomingServices(supabase);
-  const currentService = services[0] ?? null;
+  const currentService = services.find((service) => service.id === pickDefaultServiceId(services)) ?? null;
   const [rooms, board, notifications, volunteers] = await Promise.all([
     getRooms(supabase),
     currentService ? fetchRoomBoard(supabase, currentService.id) : Promise.resolve([]),
@@ -447,23 +511,24 @@ export async function fetchPickupSessionResult(
   sessionId: string,
   existingSession?: any,
 ) {
-  const sessionMatch =
+  const sessionMatch = normalizeSessionRecord(
     existingSession ??
-    (
-      await supabase
-        .from("checkin_sessions")
-        .select("*")
-        .eq("id", sessionId)
-        .eq("status", "checked_in")
-        .maybeSingle()
-    ).data;
+      (
+        await supabase
+          .from("checkin_sessions")
+          .select("*")
+          .eq("id", sessionId)
+          .eq("status", "checked_in")
+          .maybeSingle()
+      ).data,
+  );
 
   if (!sessionMatch) {
     return null;
   }
 
   const [bundle, checkins, service] = await Promise.all([
-    fetchFamilyBundle(supabase, sessionMatch.family_id),
+    fetchFamilyBundleForService(supabase, sessionMatch.family_id, sessionMatch.service_event_id),
     supabase
       .from("checkins")
       .select("*, child:children(*), room:rooms(id, name)")
@@ -502,7 +567,7 @@ export async function fetchPickupRoster(
 
 export async function getPickupBootstrap(supabase: AppSupabase) {
   const services = await getUpcomingServices(supabase);
-  const selectedServiceId = services[0]?.id as string | undefined;
+  const selectedServiceId = pickDefaultServiceId(services) ?? undefined;
   const roster = selectedServiceId
     ? await fetchPickupRoster(supabase, selectedServiceId)
     : [];

@@ -32,11 +32,57 @@ function toLocalDateTimeValue(value: Date) {
   return localValue.toISOString().slice(0, 16);
 }
 
+const DEFAULT_SERVICE_DURATION_MINUTES = 90;
+
 function buildDefaultServiceStart() {
   const next = new Date();
   next.setDate(next.getDate() + 7);
   next.setHours(10, 30, 0, 0);
   return toLocalDateTimeValue(next);
+}
+
+function buildServiceEnd(startValue: string, durationMinutes = DEFAULT_SERVICE_DURATION_MINUTES) {
+  const start = new Date(startValue);
+
+  if (Number.isNaN(start.getTime())) {
+    return "";
+  }
+
+  start.setMinutes(start.getMinutes() + durationMinutes);
+  return toLocalDateTimeValue(start);
+}
+
+function isSameLocalDay(left: string, right: string) {
+  return left.slice(0, 10) === right.slice(0, 10);
+}
+
+function getServiceDurationMinutes(startsAt: string, endsAt: string) {
+  const start = new Date(startsAt);
+  const end = new Date(endsAt);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return DEFAULT_SERVICE_DURATION_MINUTES;
+  }
+
+  const duration = Math.round((end.getTime() - start.getTime()) / 60_000);
+  return duration > 0 ? duration : DEFAULT_SERVICE_DURATION_MINUTES;
+}
+
+function syncEndDateToStartDay(startsAt: string, endsAt: string) {
+  if (!startsAt || !endsAt) {
+    return endsAt;
+  }
+
+  const start = new Date(startsAt);
+  const end = new Date(endsAt);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return endsAt;
+  }
+
+  const synced = new Date(start);
+  synced.setHours(end.getHours(), end.getMinutes(), 0, 0);
+  return toLocalDateTimeValue(synced);
 }
 
 export function LiveDashboard({
@@ -59,11 +105,12 @@ export function LiveDashboard({
   const [selectedServiceId, setSelectedServiceId] = useState<string>(
     initialCurrentService?.id ?? initialServices[0]?.id ?? "",
   );
+  const defaultStart = buildDefaultServiceStart();
   const [serviceForm, setServiceForm] = useState({
     name: "Sunday Service",
     campus: "Main Campus",
-    starts_at: buildDefaultServiceStart(),
-    ends_at: "",
+    starts_at: defaultStart,
+    ends_at: buildServiceEnd(defaultStart),
   });
   const [sendingKey, startSending] = useTransition();
   const [savingService, startSavingService] = useTransition();
@@ -135,12 +182,29 @@ export function LiveDashboard({
       return;
     }
 
+    const resolvedEnd = serviceForm.ends_at || buildServiceEnd(serviceForm.starts_at);
+
+    if (!resolvedEnd) {
+      toast.error("Set an end time for the service.");
+      return;
+    }
+
+    if (!isSameLocalDay(serviceForm.starts_at, resolvedEnd)) {
+      toast.error("Service start and end need to stay on the same day.");
+      return;
+    }
+
+    if (new Date(resolvedEnd).getTime() <= new Date(serviceForm.starts_at).getTime()) {
+      toast.error("Service end time needs to be after the start time.");
+      return;
+    }
+
     startSavingService(async () => {
       const { error } = await supabase.from("service_events").insert({
         name: serviceForm.name.trim(),
         campus: serviceForm.campus.trim() || "Main Campus",
         starts_at: new Date(serviceForm.starts_at).toISOString(),
-        ends_at: serviceForm.ends_at ? new Date(serviceForm.ends_at).toISOString() : null,
+        ends_at: new Date(resolvedEnd).toISOString(),
         status: "scheduled",
       });
 
@@ -166,8 +230,8 @@ export function LiveDashboard({
 
       setServiceForm((current) => ({
         ...current,
-        starts_at: buildDefaultServiceStart(),
-        ends_at: "",
+        starts_at: defaultStart,
+        ends_at: buildServiceEnd(defaultStart),
       }));
       toast.success("Service event created.");
     });
@@ -181,8 +245,8 @@ export function LiveDashboard({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="glass-panel">
+      <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <Card className="glass-panel self-start">
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -204,10 +268,10 @@ export function LiveDashboard({
               </select>
             </div>
           </CardHeader>
-          <CardContent className="grid auto-rows-fr gap-4 md:grid-cols-2">
+          <CardContent className="grid content-start gap-4 md:grid-cols-2">
             {groups.map(({ room, entries }) => (
               <div
-                className="flex h-full min-h-[15.5rem] flex-col rounded-[1.75rem] border border-orange-100 bg-white p-5"
+                className="flex min-h-[11rem] flex-col rounded-[1.75rem] border border-orange-100 bg-white p-5"
                 key={room.id}
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
@@ -218,11 +282,11 @@ export function LiveDashboard({
                   <Badge>{entries.length} active</Badge>
                 </div>
                 {entries.length === 0 ? (
-                  <div className="flex flex-1 items-center rounded-[1.25rem] border border-dashed border-orange-200 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-[1.25rem] border border-dashed border-orange-200 p-4 text-sm text-muted-foreground">
                     <p>No children checked into this room yet.</p>
                   </div>
                 ) : (
-                  <div className="flex flex-1 flex-col gap-3">
+                  <div className="flex flex-col gap-3">
                     {entries.map((entry) => (
                       <div
                         className="rounded-[1.25rem] border border-slate-100 bg-slate-50 p-4"
@@ -314,9 +378,21 @@ export function LiveDashboard({
                     <Label htmlFor="service-starts-at">Starts</Label>
                     <Input
                       id="service-starts-at"
-                      onChange={(event) =>
-                        setServiceForm((current) => ({ ...current, starts_at: event.target.value }))
-                      }
+                      onChange={(event) => {
+                        const nextStartsAt = event.target.value;
+
+                        setServiceForm((current) => {
+                          const duration = current.ends_at
+                            ? getServiceDurationMinutes(current.starts_at, current.ends_at)
+                            : DEFAULT_SERVICE_DURATION_MINUTES;
+
+                          return {
+                            ...current,
+                            starts_at: nextStartsAt,
+                            ends_at: nextStartsAt ? buildServiceEnd(nextStartsAt, duration) : "",
+                          };
+                        });
+                      }}
                       type="datetime-local"
                       value={serviceForm.starts_at}
                     />
@@ -326,7 +402,10 @@ export function LiveDashboard({
                     <Input
                       id="service-ends-at"
                       onChange={(event) =>
-                        setServiceForm((current) => ({ ...current, ends_at: event.target.value }))
+                        setServiceForm((current) => ({
+                          ...current,
+                          ends_at: syncEndDateToStartDay(current.starts_at, event.target.value),
+                        }))
                       }
                       type="datetime-local"
                       value={serviceForm.ends_at}
