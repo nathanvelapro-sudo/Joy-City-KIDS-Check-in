@@ -1,14 +1,32 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import {
+  createTimeoutFetch,
+  getSupabasePublicEnv,
+  hasSupabasePublicEnv,
+} from "@/lib/supabase/env";
+
+const PUBLIC_PATHS = new Set(["/", "/sign-in", "/sign-up", "/api/health"]);
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request,
   });
 
+  if (PUBLIC_PATHS.has(request.nextUrl.pathname)) {
+    return response;
+  }
+
+  if (!hasSupabasePublicEnv()) {
+    console.error("Supabase middleware skipped: public environment variables are missing.");
+    return response;
+  }
+
+  const { anonKey, url } = getSupabasePublicEnv();
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    anonKey,
     {
       cookies: {
         getAll() {
@@ -21,10 +39,17 @@ export async function updateSession(request: NextRequest) {
           });
         },
       },
+      global: {
+        fetch: createTimeoutFetch(),
+      },
     },
   );
 
-  await supabase.auth.getUser();
+  try {
+    await supabase.auth.getUser();
+  } catch (error) {
+    console.error("Supabase middleware auth refresh failed.", error);
+  }
+
   return response;
 }
-

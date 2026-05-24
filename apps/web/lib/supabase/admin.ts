@@ -1,15 +1,25 @@
 import { createClient } from "@supabase/supabase-js";
 
+import {
+  createTimeoutFetch,
+  getSupabasePublicEnv,
+  getSupabaseServiceRoleKey,
+} from "@/lib/supabase/env";
+
 export function createAdminClient() {
+  const { url } = getSupabasePublicEnv();
+
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    url,
+    getSupabaseServiceRoleKey(),
     {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
+      global: {
+        fetch: createTimeoutFetch(),
+      },
     },
   );
 }
-

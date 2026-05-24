@@ -1,28 +1,34 @@
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import type { AppProfile } from "@/lib/types";
 
 export async function getUserContext() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
+    if (!user) {
+      return { user: null, profile: null };
+    }
+
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
+    return {
+      user,
+      profile,
+    };
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Unable to load authenticated user context.", error);
     return { user: null, profile: null };
   }
-
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  return {
-    user,
-    profile,
-  };
 }
 
 export async function requireUser() {
