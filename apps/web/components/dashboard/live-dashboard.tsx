@@ -1,7 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { Bell, Clock3, LoaderCircle, MessageSquareText, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import {
+  Bell,
+  CalendarCheck2,
+  CircleAlert,
+  CircleCheck,
+  Clock3,
+  LoaderCircle,
+  MapPin,
+  MessageSquareText,
+  Plus,
+  RefreshCw,
+  Wifi,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -105,13 +118,13 @@ export function LiveDashboard({
   const [selectedServiceId, setSelectedServiceId] = useState<string>(
     initialCurrentService?.id ?? initialServices[0]?.id ?? "",
   );
-  const defaultStart = buildDefaultServiceStart();
   const [serviceForm, setServiceForm] = useState({
     name: "Sunday Service",
     campus: "Main Campus",
-    starts_at: defaultStart,
-    ends_at: buildServiceEnd(defaultStart),
+    starts_at: "",
+    ends_at: "",
   });
+  const [healthStatus, setHealthStatus] = useState<"checking" | "ready" | "attention">("checking");
   const [sendingKey, startSending] = useTransition();
   const [savingService, startSavingService] = useTransition();
   const { board, notifications, setBoard, setNotifications } = useRealtimeRoomBoard<any, any>(
@@ -119,6 +132,27 @@ export function LiveDashboard({
     initialBoard,
     initialNotifications,
   );
+
+  const checkReadiness = useCallback(async () => {
+    setHealthStatus("checking");
+
+    try {
+      const response = await fetch("/api/health", { cache: "no-store" });
+      setHealthStatus(response.ok ? "ready" : "attention");
+    } catch {
+      setHealthStatus("attention");
+    }
+  }, []);
+
+  useEffect(() => {
+    const nextDefaultStart = buildDefaultServiceStart();
+    setServiceForm((current) => ({
+      ...current,
+      starts_at: nextDefaultStart,
+      ends_at: buildServiceEnd(nextDefaultStart),
+    }));
+    void checkReadiness();
+  }, [checkReadiness]);
 
   useEffect(() => {
     if (!selectedServiceId) {
@@ -228,10 +262,11 @@ export function LiveDashboard({
         setSelectedServiceId(nextServices[0].id);
       }
 
+      const nextDefaultStart = buildDefaultServiceStart();
       setServiceForm((current) => ({
         ...current,
-        starts_at: defaultStart,
-        ends_at: buildServiceEnd(defaultStart),
+        starts_at: nextDefaultStart,
+        ends_at: buildServiceEnd(nextDefaultStart),
       }));
       toast.success("Service event created.");
     });
@@ -245,6 +280,93 @@ export function LiveDashboard({
 
   return (
     <div className="space-y-6">
+      <Card className="glass-panel">
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-2xl">Sunday readiness</CardTitle>
+              <CardDescription>
+                Confirm the essentials before families arrive, then print one test label from kiosk mode.
+              </CardDescription>
+            </div>
+            <Button
+              disabled={healthStatus === "checking"}
+              onClick={() => void checkReadiness()}
+              size="sm"
+              variant="secondary"
+            >
+              <RefreshCw className={healthStatus === "checking" ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+              Check again
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-[1.25rem] border border-orange-100 bg-white p-4">
+            <div className="flex items-center gap-3">
+              {healthStatus === "ready" ? (
+                <CircleCheck className="h-5 w-5 text-emerald-600" />
+              ) : healthStatus === "attention" ? (
+                <CircleAlert className="h-5 w-5 text-rose-600" />
+              ) : (
+                <Wifi className="h-5 w-5 text-orange-500" />
+              )}
+              <div>
+                <p className="font-semibold text-slate-950">Database connection</p>
+                <p className="text-sm text-slate-500">
+                  {healthStatus === "ready"
+                    ? "Connected"
+                    : healthStatus === "attention"
+                      ? "Needs attention"
+                      : "Checking"}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-[1.25rem] border border-orange-100 bg-white p-4">
+            <div className="flex items-center gap-3">
+              {services.length > 0 ? (
+                <CircleCheck className="h-5 w-5 text-emerald-600" />
+              ) : (
+                <CircleAlert className="h-5 w-5 text-rose-600" />
+              )}
+              <div>
+                <p className="font-semibold text-slate-950">Service schedule</p>
+                <p className="text-sm text-slate-500">
+                  {services.length > 0 ? `${services.length} upcoming` : "Add a service date"}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-[1.25rem] border border-orange-100 bg-white p-4">
+            <div className="flex items-center gap-3">
+              {initialRooms.length > 0 ? (
+                <CircleCheck className="h-5 w-5 text-emerald-600" />
+              ) : (
+                <CircleAlert className="h-5 w-5 text-rose-600" />
+              )}
+              <div>
+                <p className="font-semibold text-slate-950">Room setup</p>
+                <p className="text-sm text-slate-500">
+                  {initialRooms.length > 0 ? `${initialRooms.length} rooms configured` : "No active rooms"}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] border border-orange-100 bg-orange-50 p-4 md:col-span-3">
+            <div className="flex items-center gap-3 text-sm text-slate-700">
+              <MapPin className="h-4 w-4 text-orange-600" />
+              <span>Open kiosk mode and print one parent/child test set before doors open.</span>
+            </div>
+            <Button asChild size="sm">
+              <Link href="/kiosk">
+                <CalendarCheck2 className="h-4 w-4" />
+                Open kiosk
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card className="glass-panel self-start">
           <CardHeader>

@@ -18,11 +18,19 @@ import {
 import { createClient } from "@/lib/supabase/browser";
 import { formatDateTime, formatPhone } from "@/lib/utils";
 
+const VERIFICATION_OPTIONS = [
+  { value: "security_code", label: "Typed security code" },
+  { value: "qr_scan", label: "QR scan / keyboard wedge" },
+  { value: "manual_override", label: "Admin manual override" },
+] as const;
+
 export function PickupConsole({
+  isAdmin,
   initialRoster,
   initialSelectedServiceId,
   initialServices,
 }: {
+  isAdmin: boolean;
   initialRoster: any[];
   initialSelectedServiceId: string | null;
   initialServices: any[];
@@ -137,6 +145,26 @@ export function PickupConsole({
       return;
     }
 
+    if (verificationMethod === "manual_override") {
+      if (!isAdmin) {
+        toast.error("Manual override requires an admin account.");
+        return;
+      }
+
+      if (!notes.trim()) {
+        toast.error("Add a pickup note explaining why the admin override is needed.");
+        return;
+      }
+
+      if (
+        !window.confirm(
+          "Release this family with an admin manual override? This action will be recorded.",
+        )
+      ) {
+        return;
+      }
+    }
+
     startTransition(async () => {
       const { error } = await supabase.rpc("complete_pickup", {
         p_session_id: result.session.session_id,
@@ -203,11 +231,9 @@ export function PickupConsole({
             <div className="space-y-3">
               <Label>Verification method</Label>
               <div className="grid gap-3">
-                {[
-                  { value: "security_code", label: "Typed security code" },
-                  { value: "qr_scan", label: "QR scan / keyboard wedge" },
-                  { value: "manual_override", label: "Admin manual override" },
-                ].map((option) => (
+                {VERIFICATION_OPTIONS.filter(
+                  (option) => option.value !== "manual_override" || isAdmin,
+                ).map((option) => (
                   <label
                     className="flex items-center gap-3 rounded-[1.25rem] border border-orange-100 bg-white px-4 py-3"
                     key={option.value}

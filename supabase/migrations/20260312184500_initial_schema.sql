@@ -259,6 +259,10 @@ create trigger set_children_updated_at
 before update on public.children
 for each row execute function public.set_updated_at();
 
+create trigger set_children_default_room
+before insert or update of birthdate on public.children
+for each row execute function public.set_child_default_room();
+
 create trigger set_authorized_pickups_updated_at
 before update on public.authorized_pickups
 for each row execute function public.set_updated_at();
@@ -365,6 +369,58 @@ as $$
   select extract(year from age(current_date, p_birthdate))::integer;
 $$;
 
+create or replace function public.calculate_age_months(
+  p_birthdate date,
+  p_as_of_date date default current_date
+)
+returns integer
+language sql
+stable
+as $$
+  select greatest(
+    (
+      extract(year from age(p_as_of_date, p_birthdate))::integer * 12
+    ) + extract(month from age(p_as_of_date, p_birthdate))::integer,
+    0
+  );
+$$;
+
+create or replace function public.find_room_for_birthdate(
+  p_birthdate date,
+  p_as_of_date date default current_date
+)
+returns uuid
+language sql
+stable
+set search_path = public
+as $$
+  with age_value as (
+    select public.calculate_age_months(p_birthdate, p_as_of_date) as age_months
+  )
+  select r.id
+  from public.rooms r
+  cross join age_value av
+  where r.active
+    and (r.min_age_months is null or av.age_months >= r.min_age_months)
+    and (r.max_age_months is null or av.age_months <= r.max_age_months)
+  order by
+    coalesce(r.min_age_months, -1) desc,
+    coalesce(r.max_age_months, 1000000) asc,
+    r.name asc
+  limit 1;
+$$;
+
+create or replace function public.set_child_default_room()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.default_room_id = public.find_room_for_birthdate(new.birthdate, current_date);
+  return new;
+end;
+$$;
+
 create or replace function public.search_family_households(p_query text)
 returns table (
   family_id uuid,
@@ -469,6 +525,7 @@ set search_path = public
 as $$
 declare
   v_precheckin_id uuid;
+  v_service_date date;
   v_rows_inserted integer;
 begin
   if auth.uid() is null then
@@ -488,6 +545,11 @@ begin
   if array_length(p_child_ids, 1) is null then
     raise exception 'Select at least one child';
   end if;
+
+  select se.starts_at::date
+  into v_service_date
+  from public.service_events se
+  where se.id = p_service_event_id;
 
   insert into public.precheckins (
     family_id,
@@ -523,7 +585,7 @@ begin
   select
     v_precheckin_id,
     c.id,
-    c.default_room_id,
+    coalesce(public.find_room_for_birthdate(c.birthdate, coalesce(v_service_date, current_date)), c.default_room_id),
     true
   from public.children c
   where c.family_id = p_family_id
@@ -662,6 +724,7 @@ as $$
 declare
   v_session_id uuid;
   v_security_code text;
+  v_service_date date;
   v_rows_inserted integer;
 begin
   if not public.is_staff() then
@@ -681,6 +744,11 @@ begin
   ) then
     raise exception 'This family already has an active check-in for the selected service';
   end if;
+
+  select se.starts_at::date
+  into v_service_date
+  from public.service_events se
+  where se.id = p_service_event_id;
 
   select public.generate_security_code() into v_security_code;
 
@@ -727,7 +795,11 @@ begin
     c.family_id,
     p_service_event_id,
     c.id,
-    coalesce(nullif((p_room_assignments ->> c.id::text), '')::uuid, c.default_room_id),
+    coalesce(
+      nullif((p_room_assignments ->> c.id::text), '')::uuid,
+      public.find_room_for_birthdate(c.birthdate, coalesce(v_service_date, current_date)),
+      c.default_room_id
+    ),
     timezone('utc', now()),
     'checked_in',
     auth.uid(),

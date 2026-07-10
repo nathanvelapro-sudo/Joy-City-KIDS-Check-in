@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/browser";
 import { getReportsSnapshot } from "@/lib/data";
 import { formatDateTime } from "@/lib/utils";
+
+const REPORT_PAGE_SIZE = 25;
+const ATTENDANCE_PREVIEW_SIZE = 20;
+const PICKUP_PREVIEW_SIZE = 10;
 
 function statusVariant(status: string) {
   if (status === "approved" || status === "sent") return "success";
@@ -59,6 +64,109 @@ export function ReportsScreen({
   const [detailedCheckins, setDetailedCheckins] = useState(initialDetailedCheckins);
   const [pickupLogs, setPickupLogs] = useState(initialPickupLogs);
   const [volunteers, setVolunteers] = useState(initialVolunteers);
+  const [query, setQuery] = useState("");
+  const [serviceFilter, setServiceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+
+  const serviceOptions = useMemo(() => {
+    const services = new Map<string, string>();
+
+    detailedCheckins.forEach((entry) => {
+      if (entry.service_event_id && entry.service?.name) {
+        services.set(entry.service_event_id, entry.service.name);
+      }
+    });
+
+    return Array.from(services, ([id, name]) => ({ id, name })).sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
+  }, [detailedCheckins]);
+
+  const filteredDetailedCheckins = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return detailedCheckins.filter((entry) => {
+      if (serviceFilter !== "all" && entry.service_event_id !== serviceFilter) {
+        return false;
+      }
+
+      if (statusFilter !== "all" && entry.status !== statusFilter) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return [
+        entry.child?.preferred_name,
+        entry.child?.first_name,
+        entry.child?.last_name,
+        entry.family?.household_name,
+        entry.room?.name,
+        entry.checkedInByName,
+        entry.checkedOutByName,
+        entry.pickup?.full_name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+    });
+  }, [detailedCheckins, query, serviceFilter, statusFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredDetailedCheckins.length / REPORT_PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const paginatedDetailedCheckins = filteredDetailedCheckins.slice(
+    (safePage - 1) * REPORT_PAGE_SIZE,
+    safePage * REPORT_PAGE_SIZE,
+  );
+
+  const visibleAttendance = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return attendance
+      .filter((row) => {
+        if (serviceFilter !== "all" && row.service_event_id !== serviceFilter) {
+          return false;
+        }
+
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return [row.service_name, row.room_name]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+      })
+      .slice(0, ATTENDANCE_PREVIEW_SIZE);
+  }, [attendance, query, serviceFilter]);
+
+  const visiblePickupLogs = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return pickupLogs
+      .filter((log) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+
+        return [
+          log.child?.first_name,
+          log.child?.last_name,
+          log.family?.household_name,
+          log.pickup?.full_name,
+          log.verifiedByName,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+      })
+      .slice(0, PICKUP_PREVIEW_SIZE);
+  }, [pickupLogs, query]);
+
+  function updateFilters(callback: () => void) {
+    callback();
+    setPage(1);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -104,6 +212,51 @@ export function ReportsScreen({
     <div className="space-y-6">
       <Card className="glass-panel">
         <CardHeader>
+          <CardTitle className="text-2xl">Report filters</CardTitle>
+          <CardDescription>
+            Narrow the audit view before reviewing or exporting attendance records.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-[1fr_0.7fr_0.55fr]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              aria-label="Search reports"
+              className="pl-11"
+              onChange={(event) => updateFilters(() => setQuery(event.target.value))}
+              placeholder="Search child, family, room, pickup adult, or staff"
+              value={query}
+            />
+          </div>
+          <select
+            aria-label="Filter reports by service"
+            className="h-11 rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none"
+            onChange={(event) => updateFilters(() => setServiceFilter(event.target.value))}
+            value={serviceFilter}
+          >
+            <option value="all">All services</option>
+            {serviceOptions.map((service) => (
+              <option key={service.id} value={service.id}>
+                {service.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filter reports by status"
+            className="h-11 rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none"
+            onChange={(event) => updateFilters(() => setStatusFilter(event.target.value))}
+            value={statusFilter}
+          >
+            <option value="all">All statuses</option>
+            <option value="checked_in">Checked in</option>
+            <option value="picked_up">Picked up</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </CardContent>
+      </Card>
+
+      <Card className="glass-panel">
+        <CardHeader>
           <CardTitle className="text-2xl">Attendance summary</CardTitle>
           <CardDescription>
             Live room totals for quick headcounts and end-of-day reconciliation.
@@ -121,7 +274,7 @@ export function ReportsScreen({
               </tr>
             </thead>
             <tbody>
-              {attendance.map((row) => (
+              {visibleAttendance.map((row) => (
                 <tr className="border-t border-orange-100" key={`${row.service_event_id}-${row.room_id}`}>
                   <td className="py-4 pr-6">
                     <div>
@@ -137,6 +290,11 @@ export function ReportsScreen({
               ))}
             </tbody>
           </table>
+          {visibleAttendance.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No attendance rows match these filters.
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -153,7 +311,7 @@ export function ReportsScreen({
               onClick={() =>
                 downloadCsv(
                   "joykids-detailed-checkin-log.csv",
-                  detailedCheckins.map((entry) => ({
+                  filteredDetailedCheckins.map((entry) => ({
                     child: `${entry.child?.preferred_name || entry.child?.first_name || ""} ${entry.child?.last_name || ""}`.trim(),
                     family: entry.family?.household_name ?? "",
                     service: entry.service?.name ?? "",
@@ -193,7 +351,7 @@ export function ReportsScreen({
               </tr>
             </thead>
             <tbody>
-              {detailedCheckins.map((entry) => (
+              {paginatedDetailedCheckins.map((entry) => (
                 <tr className="border-t border-orange-100 align-top" key={entry.id}>
                   <td className="py-4 pr-6">
                     <div>
@@ -226,6 +384,39 @@ export function ReportsScreen({
               ))}
             </tbody>
           </table>
+          {paginatedDetailedCheckins.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No check-in records match these filters.
+            </p>
+          ) : null}
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-orange-100 pt-4">
+            <p className="text-sm text-muted-foreground">
+              Showing {paginatedDetailedCheckins.length} of {filteredDetailedCheckins.length} matching records
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                disabled={safePage <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                size="sm"
+                variant="secondary"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <Badge variant="secondary">
+                Page {safePage} of {pageCount}
+              </Badge>
+              <Button
+                disabled={safePage >= pageCount}
+                onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                size="sm"
+                variant="secondary"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -284,7 +475,7 @@ export function ReportsScreen({
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {pickupLogs.map((log) => (
+            {visiblePickupLogs.map((log) => (
               <div
                 className="rounded-[1.25rem] border border-orange-100 bg-white p-4"
                 key={log.id}
@@ -308,6 +499,16 @@ export function ReportsScreen({
                 </p>
               </div>
             ))}
+            {visiblePickupLogs.length === 0 ? (
+              <p className="rounded-[1.25rem] border border-dashed border-orange-200 p-5 text-sm text-muted-foreground">
+                No pickup records match this search.
+              </p>
+            ) : null}
+            {visiblePickupLogs.length > 0 && pickupLogs.length > visiblePickupLogs.length ? (
+              <p className="text-xs text-muted-foreground">
+                Showing the latest {visiblePickupLogs.length} matching pickup records. Use CSV export for the full audit.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       </div>

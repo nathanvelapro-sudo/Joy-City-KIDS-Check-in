@@ -69,8 +69,12 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
           return;
         }
 
+        const profile = data.user
+          ? await supabase.from("user_profiles").select("role").eq("id", data.user.id).single()
+          : null;
+
         toast.success("Account created.");
-        goToWorkspace("parent");
+        goToWorkspace(profile?.data?.role ?? "parent");
         return;
       }
 

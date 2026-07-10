@@ -19,3 +19,15 @@ set
   min_age_months = excluded.min_age_months,
   max_age_months = excluded.max_age_months,
   capacity = excluded.capacity;
+
+insert into public.staff_invites (email, role)
+values
+  ('giovannicardenas12998@yahoo.com', 'admin'),
+  ('kendracvela@gmail.com', 'admin'),
+  ('sarasgotjoy@gmail.com', 'admin'),
+  ('matthewneie@gmail.com', 'admin')
+on conflict (email) do update
+set
+  role = excluded.role,
+  is_active = true,
+  updated_at = timezone('utc', now());
