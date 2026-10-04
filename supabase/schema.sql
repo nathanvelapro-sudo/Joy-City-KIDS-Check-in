@@ -35,6 +35,15 @@ create table public.user_profiles (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+create table public.staff_invites (
+  email citext primary key,
+  role public.app_role not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint staff_invites_role_check check (role in ('volunteer', 'admin'))
+);
+
 create table public.families (
   id uuid primary key default gen_random_uuid(),
   household_name text not null,
@@ -243,6 +252,10 @@ create trigger set_user_profiles_updated_at
 before update on public.user_profiles
 for each row execute function public.set_updated_at();
 
+create trigger set_staff_invites_updated_at
+before update on public.staff_invites
+for each row execute function public.set_updated_at();
+
 create trigger set_families_updated_at
 before update on public.families
 for each row execute function public.set_updated_at();
@@ -258,6 +271,10 @@ for each row execute function public.set_updated_at();
 create trigger set_children_updated_at
 before update on public.children
 for each row execute function public.set_updated_at();
+
+create trigger set_children_default_room
+before insert or update of birthdate on public.children
+for each row execute function public.set_child_default_room();
 
 create trigger set_authorized_pickups_updated_at
 before update on public.authorized_pickups
@@ -285,26 +302,42 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  invited_role public.app_role;
 begin
+  select si.role
+  into invited_role
+  from public.staff_invites si
+  where si.email = new.email
+    and si.is_active
+  limit 1;
+
   insert into public.user_profiles (
     id,
     email,
     full_name,
     phone,
-    role
+    role,
+    background_check_status,
+    background_check_completed_at
   )
   values (
     new.id,
     new.email,
     coalesce(new.raw_user_meta_data ->> 'full_name', ''),
     new.raw_user_meta_data ->> 'phone',
-    'parent'
+    coalesce(invited_role, 'parent'),
+    case when invited_role is null then 'pending' else 'approved' end,
+    case when invited_role is null then null else timezone('utc', now()) end
   )
   on conflict (id) do update
   set
     email = excluded.email,
     full_name = coalesce(nullif(excluded.full_name, ''), public.user_profiles.full_name),
     phone = coalesce(excluded.phone, public.user_profiles.phone),
+    role = excluded.role,
+    background_check_status = excluded.background_check_status,
+    background_check_completed_at = excluded.background_check_completed_at,
     updated_at = timezone('utc', now());
 
   return new;
@@ -363,6 +396,58 @@ language sql
 stable
 as $$
   select extract(year from age(current_date, p_birthdate))::integer;
+$$;
+
+create or replace function public.calculate_age_months(
+  p_birthdate date,
+  p_as_of_date date default current_date
+)
+returns integer
+language sql
+stable
+as $$
+  select greatest(
+    (
+      extract(year from age(p_as_of_date, p_birthdate))::integer * 12
+    ) + extract(month from age(p_as_of_date, p_birthdate))::integer,
+    0
+  );
+$$;
+
+create or replace function public.find_room_for_birthdate(
+  p_birthdate date,
+  p_as_of_date date default current_date
+)
+returns uuid
+language sql
+stable
+set search_path = public
+as $$
+  with age_value as (
+    select public.calculate_age_months(p_birthdate, p_as_of_date) as age_months
+  )
+  select r.id
+  from public.rooms r
+  cross join age_value av
+  where r.active
+    and (r.min_age_months is null or av.age_months >= r.min_age_months)
+    and (r.max_age_months is null or av.age_months <= r.max_age_months)
+  order by
+    coalesce(r.min_age_months, -1) desc,
+    coalesce(r.max_age_months, 1000000) asc,
+    r.name asc
+  limit 1;
+$$;
+
+create or replace function public.set_child_default_room()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.default_room_id = public.find_room_for_birthdate(new.birthdate, current_date);
+  return new;
+end;
 $$;
 
 create or replace function public.search_family_households(p_query text)
@@ -469,6 +554,7 @@ set search_path = public
 as $$
 declare
   v_precheckin_id uuid;
+  v_service_date date;
   v_rows_inserted integer;
 begin
   if auth.uid() is null then
@@ -488,6 +574,11 @@ begin
   if array_length(p_child_ids, 1) is null then
     raise exception 'Select at least one child';
   end if;
+
+  select se.starts_at::date
+  into v_service_date
+  from public.service_events se
+  where se.id = p_service_event_id;
 
   insert into public.precheckins (
     family_id,
@@ -523,7 +614,7 @@ begin
   select
     v_precheckin_id,
     c.id,
-    c.default_room_id,
+    coalesce(public.find_room_for_birthdate(c.birthdate, coalesce(v_service_date, current_date)), c.default_room_id),
     true
   from public.children c
   where c.family_id = p_family_id
@@ -662,6 +753,7 @@ as $$
 declare
   v_session_id uuid;
   v_security_code text;
+  v_service_date date;
   v_rows_inserted integer;
 begin
   if not public.is_staff() then
@@ -681,6 +773,11 @@ begin
   ) then
     raise exception 'This family already has an active check-in for the selected service';
   end if;
+
+  select se.starts_at::date
+  into v_service_date
+  from public.service_events se
+  where se.id = p_service_event_id;
 
   select public.generate_security_code() into v_security_code;
 
@@ -727,7 +824,11 @@ begin
     c.family_id,
     p_service_event_id,
     c.id,
-    coalesce(nullif((p_room_assignments ->> c.id::text), '')::uuid, c.default_room_id),
+    coalesce(
+      nullif((p_room_assignments ->> c.id::text), '')::uuid,
+      public.find_room_for_birthdate(c.birthdate, coalesce(v_service_date, current_date)),
+      c.default_room_id
+    ),
     timezone('utc', now()),
     'checked_in',
     auth.uid(),
@@ -937,6 +1038,7 @@ grant usage, select on all sequences in schema public to authenticated;
 grant execute on all functions in schema public to authenticated;
 
 alter table public.user_profiles enable row level security;
+alter table public.staff_invites enable row level security;
 alter table public.families enable row level security;
 alter table public.family_memberships enable row level security;
 alter table public.rooms enable row level security;
@@ -968,6 +1070,19 @@ on public.user_profiles
 for insert
 to authenticated
 with check (public.is_staff());
+
+create policy "admins can view staff invites"
+on public.staff_invites
+for select
+to authenticated
+using (public.is_admin());
+
+create policy "admins can manage staff invites"
+on public.staff_invites
+for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
 
 create policy "family members and staff can view families"
 on public.families

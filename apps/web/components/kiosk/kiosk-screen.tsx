@@ -20,7 +20,7 @@ import {
   fetchQueuedPrecheckins,
 } from "@/lib/data";
 import { createClient } from "@/lib/supabase/browser";
-import { formatDateTime, formatGradeOrAge, formatPhone } from "@/lib/utils";
+import { findRoomForBirthdate, formatDateTime, formatGradeOrAge, formatPhone } from "@/lib/utils";
 
 type SearchResult = {
   family_id: string;
@@ -42,7 +42,6 @@ function createBlankDeskChild() {
     allergies: "",
     medical_notes: "",
     special_instructions: "",
-    default_room_id: "",
   };
 }
 
@@ -70,7 +69,6 @@ function createChildEditorState(child?: any) {
     allergies: child.allergies ?? "",
     medical_notes: child.medical_notes ?? "",
     special_instructions: child.special_instructions ?? "",
-    default_room_id: child.default_room_id ?? "",
   };
 }
 
@@ -132,6 +130,10 @@ export function KioskScreen({
   const [managingFamily, startManagingFamily] = useTransition();
   const queue = useRealtimeKioskQueue(selectedServiceId || null, initialPrecheckins);
 
+  function getAutoRoom(child: { birthdate: string }) {
+    return findRoomForBirthdate(child.birthdate, initialRooms);
+  }
+
   useEffect(() => {
     startSearch(async () => {
       try {
@@ -183,7 +185,7 @@ export function KioskScreen({
     const defaultRooms = Object.fromEntries(
       snapshot.children.map((child: any) => [
         child.id,
-        options?.presetRooms?.[child.id] ?? child.default_room_id ?? "",
+        options?.presetRooms?.[child.id] ?? getAutoRoom(child)?.id ?? child.default_room_id ?? "",
       ]),
     );
 
@@ -298,7 +300,6 @@ export function KioskScreen({
         allergies: childForm.allergies.trim() || null,
         medical_notes: childForm.medical_notes.trim() || null,
         special_instructions: childForm.special_instructions.trim() || null,
-        default_room_id: childForm.default_room_id || null,
       });
 
       if (error) {
@@ -330,7 +331,6 @@ export function KioskScreen({
           allergies: editingChildForm.allergies.trim() || null,
           medical_notes: editingChildForm.medical_notes.trim() || null,
           special_instructions: editingChildForm.special_instructions.trim() || null,
-          default_room_id: editingChildForm.default_room_id || null,
         })
         .eq("id", childId);
 
@@ -347,6 +347,14 @@ export function KioskScreen({
   }
 
   function handleRemoveChild(childId: string) {
+    if (
+      !window.confirm(
+        "Remove this child from the active family list? Their check-in history will be preserved.",
+      )
+    ) {
+      return;
+    }
+
     startManagingFamily(async () => {
       const { error } = await supabase
         .from("children")
@@ -432,6 +440,14 @@ export function KioskScreen({
   }
 
   function handleRemovePickup(pickupId: string) {
+    if (
+      !window.confirm(
+        "Remove this adult from the approved pickup list? Their prior pickup history will be preserved.",
+      )
+    ) {
+      return;
+    }
+
     startManagingFamily(async () => {
       const { error } = await supabase
         .from("authorized_pickups")
@@ -590,7 +606,6 @@ export function KioskScreen({
         allergies: child.allergies.trim() || null,
         medical_notes: child.medical_notes.trim() || null,
         special_instructions: child.special_instructions.trim() || null,
-        default_room_id: child.default_room_id || null,
       }));
 
       const { error: childrenError } = await supabase.from("children").insert(childrenPayload);
@@ -767,24 +782,12 @@ export function KioskScreen({
                 </div>
                 <div className="w-full max-w-sm space-y-2">
                   <Label htmlFor={`room-${child.id}`}>Room assignment</Label>
-                  <select
-                    className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none focus:border-orange-300"
+                  <div
+                    className="flex h-11 items-center rounded-2xl border border-orange-100 bg-orange-50 px-4 text-sm text-slate-700"
                     id={`room-${child.id}`}
-                    onChange={(event) =>
-                      setRoomAssignments((current) => ({
-                        ...current,
-                        [child.id]: event.target.value,
-                      }))
-                    }
-                    value={roomAssignments[child.id] ?? ""}
                   >
-                    <option value="">Choose a room</option>
-                    {initialRooms.map((room) => (
-                      <option key={room.id} value={room.id}>
-                        {room.name} · {room.location ?? "Main building"}
-                      </option>
-                    ))}
-                  </select>
+                    {getAutoRoom(child)?.name ?? "No age-based room configured"}
+                  </div>
                 </div>
               </div>
             </div>
@@ -884,24 +887,10 @@ export function KioskScreen({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Default room</Label>
-                            <select
-                              className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none"
-                              onChange={(event) =>
-                                setEditingChildForm((current) => ({
-                                  ...current,
-                                  default_room_id: event.target.value,
-                                }))
-                              }
-                              value={editingChildForm.default_room_id}
-                            >
-                              <option value="">Choose room</option>
-                              {initialRooms.map((room) => (
-                                <option key={room.id} value={room.id}>
-                                  {room.name} · {room.location ?? "Main building"}
-                                </option>
-                              ))}
-                            </select>
+                            <Label>Room group</Label>
+                            <div className="flex h-11 items-center rounded-2xl border border-orange-100 bg-orange-50 px-4 text-sm text-slate-700">
+                              {getAutoRoom(editingChildForm)?.name ?? "No age-based room configured"}
+                            </div>
                           </div>
                           <div className="space-y-2 md:col-span-2">
                             <Label>Allergies</Label>
@@ -1024,21 +1013,12 @@ export function KioskScreen({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Default room</Label>
-                  <select
-                    className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none"
-                    onChange={(event) =>
-                      setChildForm((current) => ({ ...current, default_room_id: event.target.value }))
-                    }
-                    value={childForm.default_room_id}
-                  >
-                    <option value="">Choose room</option>
-                    {initialRooms.map((room) => (
-                      <option key={room.id} value={room.id}>
-                        {room.name} · {room.location ?? "Main building"}
-                      </option>
-                    ))}
-                  </select>
+                  <Label>Room group</Label>
+                  <div className="flex h-11 items-center rounded-2xl border border-orange-100 bg-orange-50 px-4 text-sm text-slate-700">
+                    {childForm.birthdate
+                      ? (getAutoRoom(childForm)?.name ?? "No age-based room configured")
+                      : "Enter a birthdate to auto-assign a room"}
+                  </div>
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Allergies</Label>
@@ -1431,19 +1411,12 @@ export function KioskScreen({
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Default room</Label>
-                              <select
-                                className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none focus:border-orange-300"
-                                onChange={(event) => updateDeskChild(index, "default_room_id", event.target.value)}
-                                value={child.default_room_id}
-                              >
-                                <option value="">Choose room later</option>
-                                {initialRooms.map((room) => (
-                                  <option key={room.id} value={room.id}>
-                                    {room.name} · {room.location ?? "Main building"}
-                                  </option>
-                                ))}
-                              </select>
+                              <Label>Room group</Label>
+                              <div className="flex h-11 items-center rounded-2xl border border-orange-100 bg-orange-50 px-4 text-sm text-slate-700">
+                                {child.birthdate
+                                  ? (getAutoRoom(child)?.name ?? "No age-based room configured")
+                                  : "Enter a birthdate to auto-assign a room"}
+                              </div>
                             </div>
                             <div className="space-y-2 md:col-span-2">
                               <Label>Allergies</Label>

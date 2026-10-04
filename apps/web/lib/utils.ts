@@ -1,6 +1,44 @@
 import { clsx, type ClassValue } from "clsx";
-import { format, isToday, isTomorrow } from "date-fns";
 import { twMerge } from "tailwind-merge";
+
+const APP_TIME_ZONE = "America/Chicago";
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  timeZone: APP_TIME_ZONE,
+  weekday: "short",
+});
+
+const timeFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: APP_TIME_ZONE,
+});
+
+const dateKeyFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: APP_TIME_ZONE,
+  year: "numeric",
+});
+
+function getDateKey(value: Date) {
+  const parts = Object.fromEntries(
+    dateKeyFormatter
+      .formatToParts(value)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function addDays(dateKey: string, days: number) {
+  const value = new Date(`${dateKey}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -82,15 +120,22 @@ export function formatDateTime(input?: string | Date | null) {
   }
 
   const value = typeof input === "string" ? new Date(input) : input;
-  if (isToday(value)) {
-    return `Today at ${format(value, "h:mm a")}`;
+  if (Number.isNaN(value.getTime())) {
+    return "Not scheduled";
   }
 
-  if (isTomorrow(value)) {
-    return `Tomorrow at ${format(value, "h:mm a")}`;
+  const todayKey = getDateKey(new Date());
+  const valueKey = getDateKey(value);
+
+  if (valueKey === todayKey) {
+    return `Today at ${timeFormatter.format(value)}`;
   }
 
-  return format(value, "EEE, MMM d 'at' h:mm a");
+  if (valueKey === addDays(todayKey, 1)) {
+    return `Tomorrow at ${timeFormatter.format(value)}`;
+  }
+
+  return `${dateFormatter.format(value)} at ${timeFormatter.format(value)}`;
 }
 
 export function calculateAgeLabel(birthdate: string) {
@@ -120,6 +165,59 @@ export function formatGradeOrAge(gradeLabel: string | null | undefined, birthdat
   }
 
   return calculateAgeLabel(birthdate);
+}
+
+export function calculateAgeMonths(birthdate: string, asOf = new Date()) {
+  const dob = new Date(birthdate);
+
+  if (Number.isNaN(dob.getTime())) {
+    return null;
+  }
+
+  return Math.max(
+    (asOf.getFullYear() - dob.getFullYear()) * 12 +
+      (asOf.getMonth() - dob.getMonth()) -
+      (asOf.getDate() < dob.getDate() ? 1 : 0),
+    0,
+  );
+}
+
+export function findRoomForBirthdate(
+  birthdate: string,
+  rooms: Array<{
+    id: string;
+    name?: string;
+    location?: string | null;
+    min_age_months: number | null;
+    max_age_months: number | null;
+    active?: boolean | null;
+  }>,
+) {
+  const ageMonths = calculateAgeMonths(birthdate);
+
+  if (ageMonths === null) {
+    return null;
+  }
+
+  return (
+    rooms
+      .filter((room) => room.active !== false)
+      .sort((left, right) => {
+        const leftMin = left.min_age_months ?? -1;
+        const rightMin = right.min_age_months ?? -1;
+
+        if (leftMin !== rightMin) {
+          return rightMin - leftMin;
+        }
+
+        return (left.max_age_months ?? Number.MAX_SAFE_INTEGER) - (right.max_age_months ?? Number.MAX_SAFE_INTEGER);
+      })
+      .find(
+        (room) =>
+          (room.min_age_months === null || ageMonths >= room.min_age_months) &&
+          (room.max_age_months === null || ageMonths <= room.max_age_months),
+      ) ?? null
+  );
 }
 
 export function getGradeOrAgeLabelType(gradeLabel: string | null | undefined) {

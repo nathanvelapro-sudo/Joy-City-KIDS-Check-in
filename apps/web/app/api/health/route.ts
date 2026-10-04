@@ -9,13 +9,16 @@ const HEALTH_CHECK_TIMEOUT_MS = 3500;
 export async function GET() {
   try {
     const { anonKey, url } = getSupabasePublicEnv();
-    const response = await createTimeoutFetch(HEALTH_CHECK_TIMEOUT_MS)(`${url}/rest/v1/`, {
-      cache: "no-store",
-      headers: {
-        apikey: anonKey,
-        authorization: `Bearer ${anonKey}`,
+    const response = await createTimeoutFetch(HEALTH_CHECK_TIMEOUT_MS)(
+      `${url}/rest/v1/service_events?select=id&limit=1`,
+      {
+        cache: "no-store",
+        headers: {
+          apikey: anonKey,
+          authorization: `Bearer ${anonKey}`,
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       return NextResponse.json(

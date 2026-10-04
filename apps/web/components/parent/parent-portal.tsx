@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRealtimeFamily } from "@/hooks/use-realtime-family";
 import { createClient } from "@/lib/supabase/browser";
 import {
+  findRoomForBirthdate,
   formatDateTime,
   formatGradeOrAge,
   formatPhone,
@@ -29,6 +30,15 @@ function backgroundCheckVariant(status: string) {
   return "secondary";
 }
 
+const PARENT_SECTIONS = [
+  { id: "overview", label: "Pre-check-in & code" },
+  { id: "children", label: "Children" },
+  { id: "pickups", label: "Pickup adults" },
+  { id: "activity", label: "Activity" },
+] as const;
+
+type ParentSection = (typeof PARENT_SECTIONS)[number]["id"];
+
 function createBlankChildForm() {
   return {
     first_name: "",
@@ -39,7 +49,6 @@ function createBlankChildForm() {
     allergies: "",
     medical_notes: "",
     special_instructions: "",
-    default_room_id: "",
   };
 }
 
@@ -67,7 +76,6 @@ function createChildEditorState(child?: any) {
     allergies: child.allergies ?? "",
     medical_notes: child.medical_notes ?? "",
     special_instructions: child.special_instructions ?? "",
-    default_room_id: child.default_room_id ?? "",
   };
 }
 
@@ -124,7 +132,12 @@ export function ParentPortal({
   const [editingChildForm, setEditingChildForm] = useState(createBlankChildForm());
   const [editingPickupId, setEditingPickupId] = useState<string | null>(null);
   const [editingPickupForm, setEditingPickupForm] = useState(createBlankPickupForm());
+  const [activeSection, setActiveSection] = useState<ParentSection>("overview");
   const [pending, startTransition] = useTransition();
+
+  function getAutoRoom(child: { birthdate: string }) {
+    return findRoomForBirthdate(child.birthdate, rooms);
+  }
 
   useEffect(() => {
     if (!snapshot?.children) {
@@ -176,7 +189,6 @@ export function ParentPortal({
         allergies: childForm.allergies || null,
         medical_notes: childForm.medical_notes || null,
         special_instructions: childForm.special_instructions || null,
-        default_room_id: childForm.default_room_id || null,
       });
 
       if (error) {
@@ -242,7 +254,6 @@ export function ParentPortal({
           allergies: editingChildForm.allergies.trim() || null,
           medical_notes: editingChildForm.medical_notes.trim() || null,
           special_instructions: editingChildForm.special_instructions.trim() || null,
-          default_room_id: editingChildForm.default_room_id || null,
         })
         .eq("id", childId);
 
@@ -258,6 +269,14 @@ export function ParentPortal({
   }
 
   function handleRemoveChild(childId: string) {
+    if (
+      !window.confirm(
+        "Remove this child from the active household list? Their history will be preserved.",
+      )
+    ) {
+      return;
+    }
+
     startTransition(async () => {
       const { error } = await supabase
         .from("children")
@@ -309,6 +328,14 @@ export function ParentPortal({
   }
 
   function handleRemovePickup(pickupId: string) {
+    if (
+      !window.confirm(
+        "Remove this adult from the approved pickup list? Their prior pickup history will be preserved.",
+      )
+    ) {
+      return;
+    }
+
     startTransition(async () => {
       const { error } = await supabase
         .from("authorized_pickups")
@@ -498,7 +525,24 @@ export function ParentPortal({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <Card className="glass-panel">
+        <CardContent className="flex flex-wrap gap-2 p-4">
+          {PARENT_SECTIONS.map((section) => (
+            <Button
+              key={section.id}
+              onClick={() => setActiveSection(section.id)}
+              size="sm"
+              type="button"
+              variant={activeSection === section.id ? "default" : "secondary"}
+            >
+              {section.label}
+            </Button>
+          ))}
+        </CardContent>
+      </Card>
+
+      {activeSection === "overview" ? (
+        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="glass-panel">
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -574,9 +618,9 @@ export function ParentPortal({
                               {formatGradeOrAge(child.grade_label, child.birthdate)}
                             </p>
                           </div>
-                          {child.default_room_id ? (
+                          {getAutoRoom(child) ? (
                             <Badge variant="secondary">
-                              {rooms.find((room) => room.id === child.default_room_id)?.name ?? "Room assigned"}
+                              {getAutoRoom(child)?.name ?? "Room assigned"}
                             </Badge>
                           ) : null}
                         </div>
@@ -633,10 +677,12 @@ export function ParentPortal({
             )}
           </CardContent>
         </Card>
-      </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="glass-panel">
+        {activeSection === "children" ? (
+          <Card className="glass-panel">
           <CardHeader>
             <CardTitle>Manage children</CardTitle>
             <CardDescription>
@@ -708,24 +754,10 @@ export function ParentPortal({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Default room</Label>
-                            <select
-                              className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none"
-                              onChange={(event) =>
-                                setEditingChildForm((current) => ({
-                                  ...current,
-                                  default_room_id: event.target.value,
-                                }))
-                              }
-                              value={editingChildForm.default_room_id}
-                            >
-                              <option value="">Choose room</option>
-                              {rooms.map((room) => (
-                                <option key={room.id} value={room.id}>
-                                  {room.name}
-                                </option>
-                              ))}
-                            </select>
+                            <Label>Room group</Label>
+                            <div className="flex h-11 items-center rounded-2xl border border-orange-100 bg-orange-50 px-4 text-sm text-slate-700">
+                              {getAutoRoom(editingChildForm)?.name ?? "No age-based room configured"}
+                            </div>
                           </div>
                           <div className="space-y-2 md:col-span-2">
                             <Label>Allergies</Label>
@@ -788,9 +820,7 @@ export function ParentPortal({
                             </p>
                             <p className="text-sm text-slate-500">
                               {formatGradeOrAge(child.grade_label, child.birthdate)}
-                              {child.default_room_id
-                                ? ` · ${rooms.find((room) => room.id === child.default_room_id)?.name ?? "Room assigned"}`
-                                : ""}
+                              {getAutoRoom(child)?.name ? ` · ${getAutoRoom(child)?.name}` : ""}
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -874,22 +904,15 @@ export function ParentPortal({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="room">Default room</Label>
-                  <select
-                    className="h-11 w-full rounded-2xl border border-orange-100 bg-white px-4 text-sm outline-none"
-                    id="room"
-                    onChange={(event) =>
-                      setChildForm((current) => ({ ...current, default_room_id: event.target.value }))
-                    }
-                    value={childForm.default_room_id}
+                  <Label htmlFor="room-preview">Room group</Label>
+                  <div
+                    className="flex h-11 items-center rounded-2xl border border-orange-100 bg-orange-50 px-4 text-sm text-slate-700"
+                    id="room-preview"
                   >
-                    <option value="">Choose room</option>
-                    {rooms.map((room) => (
-                      <option key={room.id} value={room.id}>
-                        {room.name}
-                      </option>
-                    ))}
-                  </select>
+                    {childForm.birthdate
+                      ? (getAutoRoom(childForm)?.name ?? "No age-based room configured")
+                      : "Enter a birthdate to auto-assign a room"}
+                  </div>
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="allergies">Allergies</Label>
@@ -933,9 +956,11 @@ export function ParentPortal({
               </form>
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        ) : null}
 
-        <Card className="glass-panel">
+        {activeSection === "pickups" ? (
+          <Card className="glass-panel">
           <CardHeader>
             <CardTitle>Approved pickup adults</CardTitle>
             <CardDescription>
@@ -1125,10 +1150,12 @@ export function ParentPortal({
               </form>
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        ) : null}
       </div>
 
-      <Card className="glass-panel">
+      {activeSection === "activity" ? (
+        <Card className="glass-panel">
         <CardHeader>
           <CardTitle>Recent family activity</CardTitle>
           <CardDescription>Notifications and live check-in updates appear here automatically.</CardDescription>
@@ -1169,7 +1196,8 @@ export function ParentPortal({
             ))
           )}
         </CardContent>
-      </Card>
+        </Card>
+      ) : null}
     </div>
   );
 }
