@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 
 import { createTimeoutFetch, getSupabasePublicEnv } from "@/lib/supabase/env";
 
-export async function createClient() {
+export async function createClient(signal?: AbortSignal) {
   const cookieStore = await cookies();
   const { anonKey, url } = getSupabasePublicEnv();
 
@@ -16,6 +16,7 @@ export async function createClient() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
+          if (signal?.aborted) return;
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
               cookieStore.set(name, value, options);
@@ -26,7 +27,7 @@ export async function createClient() {
         },
       },
       global: {
-        fetch: createTimeoutFetch(),
+        fetch: createTimeoutFetch(undefined, signal),
       },
     },
   );

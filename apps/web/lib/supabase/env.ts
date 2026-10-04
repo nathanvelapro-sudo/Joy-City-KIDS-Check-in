@@ -1,4 +1,5 @@
 const DEFAULT_SUPABASE_TIMEOUT_MS = 5000;
+const DEFAULT_AUTH_TIMEOUT_MS = 6000;
 
 export type SupabasePublicEnv = {
   anonKey: string;
@@ -37,24 +38,70 @@ export function getSupabaseServiceRoleKey() {
   return serviceRoleKey;
 }
 
-export function createTimeoutFetch(timeoutMs = DEFAULT_SUPABASE_TIMEOUT_MS): typeof fetch {
+export async function withSupabaseTimeout<T>(
+  operation: (signal: AbortSignal) => PromiseLike<T>,
+  timeoutMs = DEFAULT_AUTH_TIMEOUT_MS,
+): Promise<T> {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      const error = new Error(`Supabase operation timed out after ${timeoutMs}ms`);
+      controller.abort(error);
+      reject(error);
+    }, timeoutMs);
+  });
+
+  try {
+    // Auth token refresh can retry for 30 seconds, beyond a single fetch timeout.
+    return await Promise.race([operation(controller.signal), deadline]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export function createTimeoutFetch(
+  timeoutMs = DEFAULT_SUPABASE_TIMEOUT_MS,
+  operationSignal?: AbortSignal,
+): typeof fetch {
   return async (input, init) => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+    const signals = [callerSignal, operationSignal].filter(
+      (signal): signal is AbortSignal => Boolean(signal),
+    );
+    const abort = () => {
+      const signal = signals.find((signal) => signal.aborted);
+      if (signal) controller.abort(signal.reason);
+    };
+    signals.forEach((signal) => signal.addEventListener("abort", abort, { once: true }));
+    abort();
+
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
 
     try {
-      return await fetch(input, {
+      const response = await fetch(input, {
         ...init,
         signal: controller.signal,
       });
+
+      // fetch resolves at the headers; keep the deadline until the body arrives.
+      // Read a clone so callers retain the original response and its metadata.
+      await response.clone().arrayBuffer();
+      return response;
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
+      if (timedOut) {
         throw new Error(`Supabase request timed out after ${timeoutMs}ms`);
       }
 
       throw error;
     } finally {
       clearTimeout(timeout);
+      signals.forEach((signal) => signal.removeEventListener("abort", abort));
     }
   };
 }

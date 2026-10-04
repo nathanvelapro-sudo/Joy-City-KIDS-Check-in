@@ -3,7 +3,12 @@ import Link from "next/link";
 import { AuthForm } from "@/components/auth/auth-form";
 import { LogoLockup } from "@/components/branding/logo-lockup";
 
-export default function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ unavailable?: string }>;
+}) {
+  const { unavailable } = await searchParams;
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl items-center px-4 py-10 lg:px-8">
       <div className="grid w-full gap-8 lg:grid-cols-[0.9fr_1.1fr]">
@@ -24,6 +29,11 @@ export default function SignInPage() {
         </div>
         <div className="flex items-center justify-center">
           <div className="w-full max-w-xl space-y-4">
+            {unavailable === "1" ? (
+              <p className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900" role="alert">
+                The check-in service is temporarily unavailable. Please try again in a moment.
+              </p>
+            ) : null}
             <AuthForm mode="sign-in" />
             <p className="px-2 text-center text-sm leading-7 text-slate-600">
               Need a parent account?{" "}

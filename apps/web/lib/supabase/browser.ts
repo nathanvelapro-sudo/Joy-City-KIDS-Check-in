@@ -2,10 +2,12 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 
-import { getSupabasePublicEnv } from "@/lib/supabase/env";
+import { createTimeoutFetch, getSupabasePublicEnv } from "@/lib/supabase/env";
 
 export function createClient() {
   const { anonKey, url } = getSupabasePublicEnv();
 
-  return createBrowserClient(url, anonKey);
+  return createBrowserClient(url, anonKey, {
+    global: { fetch: createTimeoutFetch(10000) },
+  });
 }
